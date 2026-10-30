@@ -1,0 +1,36 @@
+{
+  "timestamp": "20261030_174148",
+  "adapter": "mock",
+  "is_tooling_check": true,
+  "notice": "tooling check only, NOT a real speech-accuracy result",
+  "total_samples": 2,
+  "overall_mean_wer": 0.0,
+  "noise_levels": {
+    "clean": {
+      "samples": 1,
+      "mean_wer": 0.0,
+      "details": [
+        {
+          "file": "sample1.wav",
+          "relative_path": "clean\\sample1.wav",
+          "reference": "aaj Rina ANC visit korlam",
+          "hypothesis": "aaj Rina ANC visit korlam",
+          "wer": 0.0
+        }
+      ]
+    },
+    "snr10": {
+      "samples": 1,
+      "mean_wer": 0.0,
+      "details": [
+        {
+          "file": "sample1.wav",
+          "relative_path": "snr10\\sample1.wav",
+          "reference": "aaj Rina ANC visit korlam",
+          "hypothesis": "aaj Rina ANC visit korlam",
+          "wer": 0.0
+        }
+      ]
+    }
+  }
+}

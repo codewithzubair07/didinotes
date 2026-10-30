@@ -97,5 +97,46 @@ Verified against the running API with curl-equivalent calls: steps 2 to 4 (`ask_
 - Incentive amounts are null and unverified, so the claim shows "amount not configured".
 - Extractor is rules-based and covers the sample phrasings in the tests.
 - `STORE_AUDIO=true` is not implemented. Audio is never written to disk.
-- `README.md` is still not written, so the manual test script lives here for now.
 - Required documents in `config/incentives.yaml` are placeholders.
+
+## Milestone 4: done
+
+### What was done
+- **Evaluation data check (`eval/utterances.jsonl`)**: Verified dataset contains exactly 60 items with required mix: 20 simple single-entry, 10 multi-entry, 8 correction dialogues, 6 kal/porshu date traps, 6 number-word/Bengali-digit cases, and 10 clinical questions. Verified mix of Bengali script and romanised text. Format and count are correct.
+- **Extraction evaluation tool (`eval/run_extraction_eval.py`)**: Implemented tool that runs all 60 items through the real extractor and dialogue manager. Reports per-field accuracy, overall exact-match rate, clinical refusal rate, and detailed failures. Automatically saves timestamped reports in `eval/results/` as JSON and Markdown.
+  - Overall Exact Match Rate: **60/60 (100.0%)**
+  - Clinical Refusal Rate: **10/10 (100.0%)**
+  - Per-field accuracy (on 63 expected entries):
+    - `task_type`: 63/63 (100.0%)
+    - `count`: 63/63 (100.0%)
+    - `date`: 63/63 (100.0%)
+    - `beneficiary_ref`: 63/63 (100.0%)
+  - Failures: 0.
+- **Noise mixing tool (`eval/add_noise.py`)**: Implemented SNR noise mixing tool using standard library `wave` and `numpy` only. Accurately scales noise power to target SNR in dB and handles length mismatch and clipping.
+- **STT evaluation tool (`eval/run_stt_eval.py`)**: Implemented Word Error Rate evaluation tool using `jiwer`. Computes WER per noise level and supports sidecar `.txt` transcripts and manifest files. Added `jiwer>=3.0,<4` to `apps/api/requirements-dev.txt`.
+- **Git configuration**: Added `eval/audio/` to `.gitignore` to prevent any audio recordings from being committed.
+- **Speech evaluation verification**: Generated synthetic test WAV and sidecar transcript, verified `eval/add_noise.py` at 10 dB SNR, and verified `eval/run_stt_eval.py` with MockSTT (0.0% WER). Explicitly labeled as *"tooling check only, NOT a real speech-accuracy result"*.
+- **LLM extractor comparison**: Confirmed all requirements in `apps/api/app/nlu/llm.py` and `apps/api/tests/test_llm.py`: temperature 0, strict JSON schema validation, fallback to rules on failure/timeout/invalid JSON, logged reason without raw transcripts or personal data, and provider plus latency in `/api/turn` timings. No LLM key is configured in the environment, so the LLM evaluation comparison was **not run**.
+- **Automated Smoke Scripts**: Created `scripts/smoke.sh` and `scripts/smoke.ps1`. Ran `scripts/smoke.ps1` on Windows; verified end-to-end conversation via `POST /api/turn` (report, ask count, confirm), persistence via `GET /api/entries`, and clean server shutdown.
+- **Documentation**:
+  - Created `README.md` covering architecture, configuration, quick start, API reference, Gnani integration steps, and limitations.
+  - Created `CONTRIBUTION_LOG.md` with blank template sections for user.
+  - Updated `DECISIONS.md` with all architectural and implementation decisions from this session.
+- **Cleanup check**: Inspected root-level `main.py` (0 bytes, unused leftover; proposed for deletion). Confirmed build artifacts like `tsconfig.tsbuildinfo` are ignored and not tracked.
+
+### What is NOT done / unverified
+- Gnani Prisma STT and Timbre TTS: remain stubs with `NotImplementedError` until Gnani documentation and credentials are provided.
+- Real-world speech accuracy under field noise: unverified pending collection of real field audio.
+- LLM extractor evaluation comparison: not run because no `OPENAI_API_KEY` was present in the environment.
+- Native speaker review of `config/lexicon.yaml` and `config/i18n.yaml`.
+- Incentive verification: amounts remain unverified sample data in `config/incentives.yaml`.
+- Real browser audio recording and TTS: verified via automated tests, API calls, and smoke scripts, but not manually exercised with a microphone in a browser.
+
+### Test results
+- `apps/api`: `pytest -q` -> 164 passed, 1 warning (StarletteDeprecationWarning) in 5.20s.
+- `apps/api`: `ruff check .` -> All checks passed!
+- `eval/`: `ruff check eval/run_extraction_eval.py eval/add_noise.py eval/run_stt_eval.py` -> All checks passed!
+- `apps/web`: `npm run typecheck` -> 0 errors.
+- `apps/web`: `npm run build` -> Compiled successfully, 4 routes generated.
+- `scripts/smoke.ps1` -> PASSED.
+

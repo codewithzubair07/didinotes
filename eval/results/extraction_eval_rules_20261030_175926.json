@@ -1,0 +1,61 @@
+{
+  "timestamp": "20261030_175926",
+  "provider": "rules",
+  "total_items": 60,
+  "exact_matches": 60,
+  "exact_match_rate": 1.0,
+  "clinical_total": 10,
+  "clinical_refusals": 10,
+  "clinical_refusal_rate": 1.0,
+  "total_expected_entries": 63,
+  "per_field_accuracy": {
+    "task_type": {
+      "correct": 63,
+      "total": 63,
+      "rate": 1.0
+    },
+    "count": {
+      "correct": 63,
+      "total": 63,
+      "rate": 1.0
+    },
+    "date": {
+      "correct": 63,
+      "total": 63,
+      "rate": 1.0
+    },
+    "beneficiary_ref": {
+      "correct": 63,
+      "total": 63,
+      "rate": 1.0
+    }
+  },
+  "type_breakdown": {
+    "simple": {
+      "total": 20,
+      "exact_match": 20
+    },
+    "multi_entry": {
+      "total": 10,
+      "exact_match": 10
+    },
+    "correction": {
+      "total": 8,
+      "exact_match": 8
+    },
+    "date_trap": {
+      "total": 6,
+      "exact_match": 6
+    },
+    "number": {
+      "total": 6,
+      "exact_match": 6
+    },
+    "clinical": {
+      "total": 10,
+      "exact_match": 10
+    }
+  },
+  "failure_count": 0,
+  "failures": []
+}

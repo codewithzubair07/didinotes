@@ -1,0 +1,113 @@
+{
+  "timestamp": "20261030_173654",
+  "provider": "rules",
+  "total_items": 60,
+  "exact_matches": 58,
+  "exact_match_rate": 0.9667,
+  "clinical_total": 10,
+  "clinical_refusals": 10,
+  "clinical_refusal_rate": 1.0,
+  "total_expected_entries": 63,
+  "per_field_accuracy": {
+    "task_type": {
+      "correct": 61,
+      "total": 63,
+      "rate": 0.9683
+    },
+    "count": {
+      "correct": 61,
+      "total": 63,
+      "rate": 0.9683
+    },
+    "date": {
+      "correct": 61,
+      "total": 63,
+      "rate": 0.9683
+    },
+    "beneficiary_ref": {
+      "correct": 61,
+      "total": 63,
+      "rate": 0.9683
+    }
+  },
+  "type_breakdown": {
+    "simple": {
+      "total": 20,
+      "exact_match": 20
+    },
+    "multi_entry": {
+      "total": 10,
+      "exact_match": 10
+    },
+    "correction": {
+      "total": 8,
+      "exact_match": 6
+    },
+    "date_trap": {
+      "total": 6,
+      "exact_match": 6
+    },
+    "number": {
+      "total": 6,
+      "exact_match": 6
+    },
+    "clinical": {
+      "total": 10,
+      "exact_match": 10
+    }
+  },
+  "failure_count": 2,
+  "failures": [
+    {
+      "id": "C07",
+      "type": "correction",
+      "input": [
+        "aaj Rina ANC visit korlam",
+        "2 jon",
+        "ha"
+      ],
+      "expected": {
+        "entries": [
+          {
+            "task_type": "antenatal_visit",
+            "count": 2,
+            "event_date": "2026-10-29",
+            "beneficiary_ref": "R",
+            "date_ambiguous": false
+          }
+        ],
+        "refusal": false
+      },
+      "actual": {
+        "entries": [],
+        "refusal": false
+      }
+    },
+    {
+      "id": "C08",
+      "type": "correction",
+      "input": [
+        "aaj Rina-r teeka dilam",
+        "1 jon",
+        "count 2",
+        "hyan"
+      ],
+      "expected": {
+        "entries": [
+          {
+            "task_type": "immunization_session",
+            "count": 2,
+            "event_date": "2026-10-29",
+            "beneficiary_ref": "R",
+            "date_ambiguous": false
+          }
+        ],
+        "refusal": false
+      },
+      "actual": {
+        "entries": [],
+        "refusal": false
+      }
+    }
+  ]
+}

@@ -15,6 +15,7 @@ __pycache__/
 *.mp3
 *.webm
 *.ogg
+eval/audio/
 
 # Frontend (later milestone)
 node_modules/
