@@ -1,0 +1,54 @@
+# All user-facing response strings. Each key has bn and en. Placeholders are filled with str.format.
+# Bengali wording is a first draft and needs native speaker review.
+
+months:
+  1: { bn: "জানুয়ারি", en: "January" }
+  2: { bn: "ফেব্রুয়ারি", en: "February" }
+  3: { bn: "মার্চ", en: "March" }
+  4: { bn: "এপ্রিল", en: "April" }
+  5: { bn: "মে", en: "May" }
+  6: { bn: "জুন", en: "June" }
+  7: { bn: "জুলাই", en: "July" }
+  8: { bn: "আগস্ট", en: "August" }
+  9: { bn: "সেপ্টেম্বর", en: "September" }
+  10: { bn: "অক্টোবর", en: "October" }
+  11: { bn: "নভেম্বর", en: "November" }
+  12: { bn: "ডিসেম্বর", en: "December" }
+
+relative_dates:
+  today: { bn: "আজ", en: "today" }
+  yesterday: { bn: "গতকাল", en: "yesterday" }
+  tomorrow: { bn: "আগামীকাল", en: "tomorrow" }
+
+summary:
+  entry: { bn: "{date}: {task}, {count} জন{beneficiary}", en: "{date}: {task}, {count}{beneficiary}" }
+  beneficiary: { bn: ", {ref}", en: ", {ref}" }
+  join: { bn: "; ", en: "; " }
+
+dialogue:
+  readback: { bn: "আমি শুনেছি: {summary}। ঠিক আছে?", en: "I heard: {summary}. Is that right?" }
+  ask_task: { bn: "কোন কাজটি করেছেন? যেমন ANC, টিকা, নবজাতকের ভিজিট।", en: "Which task was it? For example ANC, immunization, newborn visit." }
+  ask_date: { bn: "কোন দিনের কাজ? আজ, গতকাল, নাকি অন্য দিন?", en: "Which day was it? Today, yesterday, or another day?" }
+  ask_date_ambiguous: { bn: "'কাল' বলতে কোনটি? গতকাল ({yesterday}) নাকি আগামীকাল ({tomorrow})?", en: "Which day do you mean by 'kal'? Yesterday ({yesterday}) or tomorrow ({tomorrow})?" }
+  ask_porshu_ambiguous: { bn: "'পরশু' বলতে কোনটি? দু'দিন আগে ({past}) নাকি দু'দিন পরে ({future})?", en: "Which day do you mean by 'porshu'? Two days ago ({past}) or two days ahead ({future})?" }
+  ask_count: { bn: "কতজন বা কতটি ছিল?", en: "How many people or items?" }
+  ask_which_field: { bn: "কোন তথ্যটি ভুল? তারিখ, সংখ্যা, বা উপকারভোগীর নাম বলুন।", en: "Which detail is wrong? Say the date, the count, or the beneficiary name." }
+  future_date: { bn: "এই তারিখটি ভবিষ্যতের। সম্পন্ন কাজের অতীতের বা আজকের তারিখ বলুন।", en: "That date is in the future. Please give today or a past date for completed work." }
+  saved: { bn: "সংরক্ষিত হয়েছে। আরও কিছু?", en: "Saved. Anything else?" }
+  nothing_to_confirm: { bn: "এখন নিশ্চিত করার কিছু নেই। কী কাজ করেছেন বলুন।", en: "There is nothing to confirm. Tell me what work you did." }
+  repeat: { bn: "দুঃখিত, বুঝতে পারিনি। অনুগ্রহ করে আবার বলুন।", en: "Sorry, I did not understand. Please say it again." }
+  type_input: { bn: "এখনও বুঝতে পারছি না। অনুগ্রহ করে টাইপ করে লিখুন।", en: "I still cannot understand. Please type your answer." }
+  clinical_refusal: { bn: "এই সরঞ্জাম শুধু কাজের রেকর্ড রাখে, চিকিৎসার পরামর্শ দেয় না। অনুগ্রহ করে আপনার ANM বা ডাক্তারের সাথে কথা বলুন।", en: "This tool only records your work and does not give medical advice. Please ask your ANM or doctor." }
+
+errors:
+  audio_too_large: { bn: "অডিও ফাইল খুব বড়। সর্বোচ্চ সীমা {limit} বাইট।", en: "Audio file is too large. The limit is {limit} bytes." }
+  audio_too_long: { bn: "অডিও খুব দীর্ঘ। সর্বোচ্চ {limit} সেকেন্ড।", en: "Audio is too long. The limit is {limit} seconds." }
+  unsupported_audio: { bn: "এই অডিও ফরম্যাট সমর্থিত নয়।", en: "This audio format is not supported." }
+  empty_input: { bn: "কোনো অডিও বা লেখা পাওয়া যায়নি।", en: "No audio or text was received." }
+  rate_limited: { bn: "অনেক বেশি অনুরোধ। একটু অপেক্ষা করে আবার চেষ্টা করুন।", en: "Too many requests. Please wait a moment and try again." }
+  invalid_request: { bn: "অনুরোধটি সঠিক নয়।", en: "The request is not valid." }
+  provider_not_implemented: { bn: "এই স্পিচ সেবাটি এখনও যুক্ত করা হয়নি।", en: "This speech provider is not connected yet." }
+  entry_not_found: { bn: "এই কাজের রেকর্ড পাওয়া যায়নি।", en: "This work entry was not found." }
+  unknown_task_type: { bn: "এই কাজের ধরন চেনা যায়নি।", en: "This task type is not recognised." }
+  future_entry_date: { bn: "এই তারিখটি ভবিষ্যতের। সম্পন্ন কাজের অতীতের বা আজকের তারিখ দিন।", en: "That date is in the future. Completed work needs today or a past date." }
+  claim_month_invalid: { bn: "মাস YYYY-MM ফরম্যাটে দিন।", en: "Month must be in YYYY-MM format." }

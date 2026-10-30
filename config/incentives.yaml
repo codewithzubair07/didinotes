@@ -1,0 +1,53 @@
+# SAMPLE DATA. Verify against the official state NHM circular and a working ASHA.
+# amount_inr stays null and verified stays false until the state circular is checked.
+# The loader refuses any config where amount_inr is set but verified is false.
+task_types:
+  - id: antenatal_visit
+    bn_label: "গর্ভকালীন পরীক্ষা"
+    en_label: "Antenatal visit"
+    required_documents:
+      - "Placeholder: antenatal register entry"
+      - "Placeholder: beneficiary card copy"
+    incentive_inr: null
+    verified: false
+
+  - id: immunization_session
+    bn_label: "টিকাদান"
+    en_label: "Immunization session"
+    required_documents:
+      - "Placeholder: immunization register entry"
+    incentive_inr: null
+    verified: false
+
+  - id: newborn_home_visit
+    bn_label: "নবজাতকের বাড়ি ভিজিট"
+    en_label: "Newborn home visit"
+    required_documents:
+      - "Placeholder: home visit record"
+    incentive_inr: null
+    verified: false
+
+  - id: institutional_delivery_accompaniment
+    bn_label: "প্রাতিষ্ঠানিক প্রসবে সঙ্গ দেওয়া"
+    en_label: "Institutional delivery accompaniment"
+    required_documents:
+      - "Placeholder: referral slip copy"
+      - "Placeholder: delivery facility acknowledgement"
+    incentive_inr: null
+    verified: false
+
+  - id: family_planning_counselling
+    bn_label: "পরিবার পরিকল্পনা পরামর্শ"
+    en_label: "Family planning counselling"
+    required_documents:
+      - "Placeholder: counselling register entry"
+    incentive_inr: null
+    verified: false
+
+  - id: other
+    bn_label: "অন্যান্য"
+    en_label: "Other"
+    required_documents:
+      - "Placeholder: supporting record"
+    incentive_inr: null
+    verified: false

@@ -1,0 +1,87 @@
+# NEEDS NATIVE SPEAKER REVIEW
+# Romanised and Bengali-script spellings are a first draft written without a native ASHA review.
+# Every entry is matched after normalise() (NFC, Bengali digits to ASCII, lowercase).
+# Multi-word entries match as a whole phrase.
+
+task_keywords:
+  antenatal_visit:
+    - "anc"
+    - "antenatal"
+    - "checkup"
+    - "গর্ভকালীন"
+    - "গর্ভবতী"
+  immunization_session:
+    - "teeka"
+    - "tika"
+    - "টিকা"
+    - "টিকাদান"
+    - "immunisation"
+    - "immunization"
+    - "vaccine"
+  newborn_home_visit:
+    - "nobojat"
+    - "newborn"
+    - "নবজাতক"
+    - "নবজাতকের"
+  institutional_delivery_accompaniment:
+    - "delivery"
+    - "prasob"
+    - "প্রসব"
+    - "প্রসবে"
+  family_planning_counselling:
+    - "family planning"
+    - "parivar porikolpona"
+    - "পরিবার পরিকল্পনা"
+    - "counselling"
+    - "counseling"
+  other: []
+
+number_words:
+  1: ["ek", "এক"]
+  2: ["dui", "দুই"]
+  3: ["tin", "তিন"]
+  4: ["char", "চার"]
+  5: ["panch", "পাঁচ"]
+  6: ["chhoy", "ছয়"]
+  7: ["shat", "সাত"]
+  8: ["aat", "আট"]
+  9: ["noy", "নয়"]
+  10: ["dosh", "দশ"]
+
+date_words:
+  today: ["aaj", "আজ", "ajke", "আজকে"]
+  yesterday: ["gotokal", "গতকাল"]
+  tomorrow: ["agamikal", "আগামীকাল"]
+  # Both yesterday and tomorrow. The parser defaults to yesterday and sets ambiguous=true.
+  kal: ["kal", "কাল"]
+  # Both the day before yesterday and the day after tomorrow. Default is the day before yesterday.
+  porshu: ["porshu", "পরশু"]
+
+yes_words: ["hyan", "হ্যাঁ", "ha", "thik ache", "ঠিক আছে"]
+no_words: ["na", "না"]
+
+correction_words: ["bhul", "ভুল", "bodlao", "বদলাও", "sudhro", "সংশোধন", "change"]
+
+# Words that mark the following number as a count correction, e.g. "count 3".
+count_words: ["count", "sonkhya", "সংখ্যা"]
+
+clinical_keywords:
+  - "dose"
+  - "dosage"
+  - "medicine"
+  - "oshudh"
+  - "ওষুধ"
+  - "fever"
+  - "jor"
+  - "জ্বর"
+  - "byatha"
+  - "ব্যথা"
+  - "pain"
+  - "bleeding"
+  - "rokto"
+  - "রক্তপাত"
+  - "ki khabo"
+  - "কী খাব"
+
+# Capitalised Latin words that are not beneficiary names (pronouns, verbs, sentence starters).
+non_name_words: ["ami", "tumi", "amra", "sei", "ei", "dilam", "korlam", "holo", "gelam"]
