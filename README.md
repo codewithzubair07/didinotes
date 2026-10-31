@@ -27,7 +27,8 @@ The application:
   - NLU Extractor: Pure rules-based extractor with 100% exact match across the 60-item evaluation set; optional OpenAI LLM fallback.
   - Evaluation Suite: 60-item utterance and dialogue evaluation suite (`eval/run_extraction_eval.py`), noise mixing tool (`eval/add_noise.py`), and STT Word Error Rate evaluation tool (`eval/run_stt_eval.py`).
   - Automated Smoke Scripts: Cross-platform end-to-end conversation and persistence smoke scripts (`scripts/smoke.sh`, `scripts/smoke.ps1`).
-  - 164 automated backend unit and integration tests passing.
+  - **Gnani Speech Integration**: Gnani Prisma STT and Timbre TTS adapters fully integrated with concurrency semaphore, exponential backoff retries, Bengali spoken numbers converter (`number_to_spoken_bn`), SHA-256 disk caching, and browser TTS fallback.
+  - 187 automated backend unit and integration tests passing.
 
 ---
 
@@ -110,16 +111,31 @@ cp .env.example .env
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model name for OpenAI extractor. Runs with `temperature: 0`. |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Base URL for OpenAI-compatible endpoint. |
 | `LLM_TIMEOUT_SECONDS` | `5.0` | Timeout in seconds before falling back to rules extractor. |
-| `STT_PROVIDER` | `mock` | Speech-to-Text provider (`mock` or `gnani`). Runs locally without keys. |
-| `TTS_PROVIDER` | `browser` | Text-to-Speech provider (`browser` or `gnani`). Browser TTS triggers client synthesis. |
+| `STT_PROVIDER` | `mock` | Speech-to-Text provider (`mock` or `gnani`). |
+| `TTS_PROVIDER` | `browser` | Text-to-Speech provider (`browser` or `gnani`). |
 | `STORE_AUDIO` | `false` | Whether to persist uploaded audio files to disk. Currently uncommitted in memory. |
-| `GNANI_API_KEY` | *(empty)* | API key for Gnani Prisma STT / Timbre TTS when plugged in. |
-| `GNANI_BASE_URL` | *(empty)* | Base URL for Gnani services. |
+| `GNANI_API_KEY` | *(empty)* | API key for Gnani Prisma STT and Timbre TTS. Required when provider is `gnani`. |
+| `GNANI_BASE_URL` | `https://api.vachana.ai` | Base URL for Gnani services. |
+| `GNANI_STT_MODEL` | *(empty)* | STT model: empty for Prisma v2.5, or `prisma-v3.0`. |
+| `GNANI_STT_LANGUAGES` | `bn-IN` | Language code for STT transcription. |
+| `GNANI_STT_FORMAT` | *(empty)* | Transcript format (e.g. `verbatim`, `transcribe`, `codemix`). |
+| `GNANI_STT_TOPIC` | *(empty)* | Optional STT context topic. |
+| `GNANI_STT_KEYTERMS` | *(empty)* | Optional STT keyterms (JSON array or comma-separated). |
+| `GNANI_TTS_MODEL` | `timbre-v3.0` | TTS model (`timbre-v3.0` or `timbre-v2.5`). |
+| `GNANI_TTS_VOICE` | `Shivani` | Voice name (e.g. `Shivani`, `Riyaa`, `Kalpana`, `Chetana`, `Devansh`). |
+| `GNANI_TTS_LANGUAGE` | `bn-IN` | Language code for TTS synthesis. |
+| `GNANI_TTS_SPEED` | `1.0` | Speech rate multiplier (0.85 to 1.15). |
+| `GNANI_TTS_CONTAINER` | `mp3` | Audio container format (`mp3` or `wav`). |
+| `GNANI_TTS_SAMPLE_RATE` | `24000` | Audio sampling rate in Hz. |
+| `GNANI_TTS_SPOKEN_NUMBERS` | `true` | Convert bare digits to spoken Bengali words before synthesis. |
+| `GNANI_MAX_CONCURRENCY` | `1` | Maximum outbound concurrent requests to Gnani API. |
+| `GNANI_TIMEOUT_S` | `30.0` | Outbound request timeout in seconds. |
+| `TTS_CACHE_DIR` | `.cache/tts` | Local directory for SHA-256 hashed TTS audio cache. |
 | `TZ` | `Asia/Kolkata` | Application timezone (Indian Standard Time). |
 | `DATABASE_URL` | `sqlite:///asha_diary.db` | SQLAlchemy SQLite database connection string. |
 | `CONFIG_DIR` | `config/` | Path to YAML configuration directory. |
 | `MAX_AUDIO_BYTES` | `2000000` | Maximum uploaded audio payload size (2 MB). |
-| `MAX_AUDIO_SECONDS` | `60` | Maximum audio duration in seconds. |
+| `MAX_AUDIO_SECONDS` | `60` | Maximum audio duration in seconds (Gnani STT enforces 30s limit). |
 | `RATE_LIMIT_PER_MINUTE` | `30` | In-memory rate limit per client IP for `/api/turn`. |
 | `SESSION_TTL_SECONDS` | `900` | Dialogue session time-to-live in memory (15 minutes). |
 
@@ -142,6 +158,7 @@ All backend routes are prefixed with `/api`.
   - `ui_hint`: UI action tag (`ask_field`, `confirm`, `saved`, `repeat`, `type_input`, `refusal`).
   - `timings_ms`: Latency breakdown (`stt`, `nlu`, `llm`, `tts`).
   - `providers`: Active provider names (`stt`, `tts`, `nlu`).
+  - `tts_fallback`: Boolean indicating whether server TTS fell back to browser TTS.
 
 ### Work Diary & Entries
 - `GET /api/entries?date=YYYY-MM-DD` — Lists diary entries for a specific date (defaults to today in IST).
@@ -163,8 +180,9 @@ flowchart LR
     A["Voice or Text Input"] --> B["FastAPI Rate Limiter"]
     B --> C{"STT Adapter"}
     C -->|mock| D["Mock Transcript"]
-    C -->|gnani| G["Gnani Prisma (503 if not configured)"]
+    C -->|gnani| G["Gnani Prisma STT (POST /stt/v3)"]
     D --> E["Text Normaliser"]
+    G --> E
     E --> F["NLU Extractor (Rules / OpenAI)"]
     F --> H["DialogueManager (Pure State Machine)"]
     H --> I{"Phase"}
@@ -173,93 +191,54 @@ flowchart LR
     I -->|Saved| L[("SQLite DB (Confirmed Entries)")]
     H --> M{"TTS Adapter"}
     M -->|browser| N["Browser Web Speech API"]
-    M -->|gnani| O["Gnani Timbre (503 if not configured)"]
+    M -->|gnani| O["Gnani Timbre TTS (/tts/inference)"]
+    O -->|Cached / Synthesized| P["Base64 Response Audio"]
+    O -->|Failure| N
 ```
 
 1. **Privacy-Preserving Beneficiary Reference**: Beneficiary names are reduced to initials (e.g. "Rina" becomes "R", "Mina Begum" becomes "MB") or short IDs (e.g. "ID 47"). Full patient names are never stored or logged.
 2. **Ambiguous Date Handling**: Bengali terms *kal* and *porshu* refer to either past or future days depending on context. The system defaults to the past (yesterday / day before yesterday) and sets `date_ambiguous: true`, prompting the ASHA for clarification. Completed work is never silently recorded in the future.
 3. **Dialogue State Machine**: Pure state machine with states `IDLE`, `AWAITING_CONFIRMATION`, and `AWAITING_FIELD`. Handles readback, corrections ("na, count 3"), repeat prompts on unintelligible speech, and fallback to typed input.
 4. **Strict Clinical Refusal**: Medical advice queries (e.g., *"ki dose dibo"*, *"jor hole ki korbo"*) trigger an immediate standard refusal directing the worker to consult an ANM/MO-IC.
-
----
-
-## Project Layout
-
-```text
-didinotes/
-├── config/                     # Configuration files
-│   ├── i18n.yaml               # User-facing strings (Bengali and English)
-│   ├── incentives.yaml         # Sample task types and required documents
-│   ├── lexicon.yaml            # Bengali/Benglish keywords (NEEDS NATIVE SPEAKER REVIEW)
-│   └── prompts/
-│       └── extract_entries.txt # Strict JSON prompt template for LLM extractor
-├── apps/
-│   ├── api/                    # FastAPI backend
-│   │   ├── app/
-│   │   │   ├── dialogue/       # Pure state machine dialogue manager
-│   │   │   ├── nlu/            # Text normalisation, dates, numbers, extraction, LLM
-│   │   │   ├── speech/         # STT/TTS protocols, MockSTT, BrowserTTS, Gnani stubs
-│   │   │   ├── claims.py       # Month-end claim calculation, CSV, HTML print logic
-│   │   │   ├── factory.py      # App factory and DB startup migrations
-│   │   │   ├── main.py         # Entrypoint for uvicorn
-│   │   │   ├── repository.py   # SQLAlchemy database operations
-│   │   │   ├── routes.py       # Health and task type endpoints
-│   │   │   ├── settings.py     # Pydantic settings
-│   │   │   └── turn.py         # POST /api/turn HTTP handler
-│   │   ├── tests/              # 164 pytest automated tests
-│   │   ├── pyproject.toml      # Ruff and pytest configuration
-│   │   ├── requirements.txt    # Production Python dependencies
-│   │   └── requirements-dev.txt# Development and test dependencies
-│   └── web/                    # Next.js frontend (App Router, Tailwind)
-│       ├── app/                # Pages: / (Talk), /diary, /claim
-│       ├── components/         # TalkScreen, DiaryScreen, ClaimScreen, DevPanel
-│       └── public/
-├── eval/                       # Evaluation and benchmarking tools
-│   ├── utterances.jsonl        # 60 curated evaluation test cases
-│   ├── run_extraction_eval.py  # NLU extraction and dialogue benchmark
-│   ├── add_noise.py            # NumPy-based SNR noise mixing utility
-│   ├── run_stt_eval.py         # jiwer-based Word Error Rate evaluation tool
-│   └── results/                # Timestamped JSON and Markdown benchmark reports
-├── scripts/                    # Operational and smoke test scripts
-│   ├── smoke.ps1               # PowerShell automated smoke test
-│   └── smoke.sh                # Bash automated smoke test
-├── PROGRESS.md                 # Project milestone completion log
-├── ARCHITECTURE.md             # Pipeline architecture diagrams and design
-├── DECISIONS.md                # Architecture Decision Records (ADRs)
-├── CONTRIBUTION_LOG.md         # Template for personal work log
-├── .env.example                # Sample environment configuration
-└── .gitignore                  # Git ignore rules (audio, DBs, secrets, cache)
-```
+5. **Speech Safety & Privacy**: Outbound Gnani logs record only `request_id`, `model`, `latency_ms`, and `status`. Audio bytes, transcripts, and API keys are never logged.
 
 ---
 
 ## Plugging in Gnani
 
-Gnani Prisma (STT) and Timbre (TTS) integration stubs are isolated in `apps/api/app/speech/gnani.py`. To plug in real Gnani endpoints:
+The Gnani Prisma (STT) and Timbre (TTS) adapters are implemented in `apps/api/app/speech/gnani.py` using `httpx`.
 
-1. **Locate the adapter file**:
-   Open [`apps/api/app/speech/gnani.py`](apps/api/app/speech/gnani.py).
-   Currently, `GnaniPrismaSTT.transcribe()` and `GnaniTimbreTTS.speak()` raise `NotImplementedError` with explicit TODO markers.
+### 1. Enable Gnani in `.env`
+Add your API credentials to `.env`:
+```bash
+STT_PROVIDER=gnani
+TTS_PROVIDER=gnani
+GNANI_API_KEY=your_actual_gnani_api_key
+GNANI_BASE_URL=https://api.vachana.ai
+GNANI_STT_MODEL=prisma-v3.0
+GNANI_TTS_MODEL=timbre-v3.0
+GNANI_TTS_VOICE=Shivani
+```
 
-2. **Configure environment variables in `.env`**:
-   ```bash
-   STT_PROVIDER=gnani
-   TTS_PROVIDER=gnani
-   GNANI_API_KEY=your_actual_gnani_api_key
-   GNANI_BASE_URL=https://api.gnani.ai/v1
-   ```
+### 2. Verify Live Connectivity
+Run the opt-in live check script to perform 1 live TTS synthesis and 1 live STT transcription round-trip:
+```powershell
+python scripts/gnani_live_check.py --yes
+```
+*(The `--yes` flag is mandatory to prevent accidental API credit consumption.)*
 
-3. **Implement the HTTP calls in `apps/api/app/speech/gnani.py`**:
-   - In `GnaniPrismaSTT.transcribe(audio_bytes, mime, lang_hint)`: Send audio bytes with `lang_hint="bn"` to the Gnani Prisma speech-to-text API and return a `Transcript(text=..., confidence=...)`.
-   - In `GnaniTimbreTTS.speak(text, lang)`: Send text to the Gnani Timbre text-to-speech API and return a `Speech(audio_bytes=..., mime="audio/wav", use_browser_tts=False)`.
-   - *Never guess API payloads or URLs; follow the official Gnani partner documentation.*
+### 3. Generate Voice Comparison Samples
+Generate sample audio across 6 different Timbre voices to listen and evaluate the best voice for rural Bengal:
+```powershell
+python scripts/tts_voice_samples.py --yes
+```
+Output audio files are saved to `eval/audio/voices/{voice}.mp3` (ignored by Git).
 
-4. **Run the STT Word Error Rate evaluation tool**:
-   Collect real test recordings in `eval/audio/` with sidecar reference transcript files (`.txt`), then run:
-   ```powershell
-   python eval/run_stt_eval.py --audio-dir eval/audio --adapter gnani
-   ```
-   This will report the mean Word Error Rate (WER) across clean and noisy audio levels.
+### 4. Adapter Features
+- **Bengali Spoken Numbers**: Preprocessing via `number_to_spoken_bn()` converts bare digits (০-৯ and 0-9) to spoken Bengali words (e.g., `2026` -> `"দুই হাজার ছাব্বিশ"`, `₹200` -> `"দুইশত টাকা"`, `২৯ অক্টোবর` -> `"ঊনত্রিশ অক্টোবর"`) so Timbre pronounces them naturally.
+- **Disk Caching**: Synthesized audio is cached locally in `.cache/tts/` using SHA-256 signatures, avoiding redundant HTTP requests for common prompts and confirmations.
+- **Pre-send Audio Validation**: STT rejects WebM audio (HTTP 415) and audio exceeding 30 seconds (HTTP 413) before sending HTTP requests, saving bandwidth and API credits.
+- **Fail-Safe Operation**: If Gnani TTS fails or is unreachable, the system automatically falls back to browser TTS with `tts_fallback: true` without failing the user's turn. If STT fails, a clear bilingual error is returned with a prompt to type.
 
 ---
 
@@ -267,8 +246,8 @@ Gnani Prisma (STT) and Timbre (TTS) integration stubs are isolated in `apps/api/
 
 | Suite | Scope | Result |
 |---|---|---|
-| `pytest -q` | `apps/api/tests` (164 tests) | **164 passed**, 1 warning |
-| `ruff check .` | `apps/api` and `eval/` | **All checks passed** |
+| `pytest -q` | `apps/api/tests` (187 tests) | **187 passed**, 1 warning |
+| `ruff check .` | `apps/api`, `eval/`, `scripts/` | **All checks passed** |
 | `npm run typecheck` | `apps/web` (TypeScript strict) | **0 errors** |
 | `npm run build` | `apps/web` (Next.js 15 production build) | **Compiled successfully**, 4 routes generated |
 | `run_extraction_eval.py` | 60 items in `eval/utterances.jsonl` | **100.0% exact match** (60/60) |
@@ -282,5 +261,4 @@ Gnani Prisma (STT) and Timbre (TTS) integration stubs are isolated in `apps/api/
 2. **Incentive Amounts**: Amounts in `config/incentives.yaml` are sample data only and marked `verified: false`. The system deliberately displays *"amount not configured"* on monthly claim summaries until verified.
 3. **Rules-Based Extractor Phrasings**: The rules-based extractor is optimized for standard ASHA reporting phrasing and the 60 evaluation items. Highly varied syntax requires either the LLM fallback or continuous lexicon expansion.
 4. **Real-World Speech Accuracy Untested**: No real ASHA speech recordings have been collected or committed. Accuracy with background field noise (traffic, clinics, rain) cannot be measured until real field recordings are conducted.
-5. **Gnani Integration Not Implemented**: The Gnani Prisma and Timbre integration remains a stub raising `NotImplementedError` until valid partner API credentials and documentation are supplied.
-
+5. **Live Gnani Endpoints**: Unit tests mock HTTP responses using `httpx.MockTransport`. Live API accuracy and latency depend on Gnani cloud performance and network conditions.

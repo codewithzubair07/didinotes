@@ -140,3 +140,39 @@ Verified against the running API with curl-equivalent calls: steps 2 to 4 (`ask_
 - `apps/web`: `npm run build` -> Compiled successfully, 4 routes generated.
 - `scripts/smoke.ps1` -> PASSED.
 
+
+## Milestone 4 - Session A: Gnani STT and TTS Backend Adapters (done)
+
+### What was done
+- **A1. Baseline audit**: Audited how speech adapters are invoked from `turn.py`, audio limits (2 MB, 60s, MIME restrictions), and audited `Transcript.confidence` usage. Allowed `confidence: float | None = None` on `Transcript` because Gnani Prisma returns no confidence score (NLU extraction confidence is computed independently).
+- **A2. Settings and startup validation**: Added comprehensive Gnani settings to `Settings` (`apps/api/app/settings.py`) and `.env.example`. Added startup check `validate_startup_settings()` in `app/main.py` failing with a clear message if Gnani provider is chosen with an empty key. Added `.cache/` to `.gitignore`.
+- **A3. Bengali spoken numbers (`apps/api/app/speech/spoken_bn.py`)**: Implemented `number_to_spoken_bn()` converting digits (0-100, years, ordinals/calendar days, currency) into spoken Bengali words to ensure natural pronunciation by Timbre TTS. Marked subtle colloquial forms with `# NEEDS NATIVE SPEAKER REVIEW`.
+- **A4. Gnani Prisma STT adapter (`apps/api/app/speech/gnani.py: GnaniPrismaSTT`)**:
+  - Implements `SpeechToText` protocol with `POST https://api.vachana.ai/stt/v3`.
+  - Enforces pre-send checks: rejects WebM format (HTTP 415) and duration > 30s (HTTP 413) before sending HTTP requests.
+  - Concurrency control via `threading.Semaphore(GNANI_MAX_CONCURRENCY)`.
+  - Retries 429 and 5xx up to 2 times with exponential backoff (0.5s, 1.0s); fails fast on client errors (400, 401, 402, 403, 422).
+  - Handles `truncated=true` as `GnaniAudioError`.
+  - Strict privacy-safe logging: logs only `request_id`, `model`, `latency_ms`, and `status`. Never logs audio bytes, transcripts, or keys.
+- **A5. Gnani Timbre TTS adapter (`apps/api/app/speech/gnani.py: GnaniTimbreTTS`)**:
+  - Implements `TextToSpeech` protocol with `POST https://api.vachana.ai/api/v1/tts/inference`.
+  - Preprocesses text using `number_to_spoken_bn()` when enabled.
+  - Deterministic disk caching using SHA-256 hashes stored in `.cache/tts/`.
+  - Graceful fallback: on failure or network error, falls back to client browser TTS with `tts_fallback=True` without failing the turn.
+- **A6. Wiring into `/api/turn` & `providers.py`**:
+  - Updated `providers.get_stt` and `get_tts` to instantiate Gnani adapters with runtime settings.
+  - Updated `/api/turn` error handling to return bilingual error messages (401, 402, 413, 415, 429, 502, 504).
+  - Exposes `tts_fallback` flag and detailed provider info in `/api/turn` response payload.
+- **A7. Unit tests (`apps/api/tests/test_gnani.py`)**:
+  - 23 comprehensive tests using `httpx.MockTransport` covering STT valid response, empty transcript, truncation, auth errors, quota exhaustion, 429 retries, timeout, pre-send format and duration validation, TTS synthesis, disk caching, number conversion, browser TTS fallback, and caplog privacy verification.
+- **A8. Developer utility scripts**:
+  - `scripts/gnani_live_check.py`: Opt-in live check script requiring `--yes` to run 1 live TTS call and 1 live STT call round-trip. Exits safely with warning otherwise.
+  - `scripts/tts_voice_samples.py`: Opt-in voice sample script requiring `--yes` to synthesize samples in 6 voices (`Shivani`, `Riyaa`, `Kalpana`, `Chetana`, `Devansh`, `Harshad`) into `eval/audio/voices/`. Exits safely with warning otherwise.
+- **A9. Documentation**: Updated `README.md`, `ARCHITECTURE.md`, `DECISIONS.md`, and `PROGRESS.md`.
+
+### Test results
+- `apps/api`: `pytest -q` -> **187 passed**, 1 warning in 15.01s.
+- `apps/api`: `ruff check .` -> All checks passed!
+- `scripts/`: `ruff check scripts/gnani_live_check.py scripts/tts_voice_samples.py` -> All checks passed!
+- `apps/web`: `npm run typecheck` -> 0 errors.
+- `apps/web`: `npm run build` -> Compiled successfully, 4 routes generated.

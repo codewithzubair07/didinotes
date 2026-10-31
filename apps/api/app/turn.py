@@ -13,6 +13,15 @@ from app.dialogue.manager import SessionState, handle
 from app.i18n import t
 from app.repository import confirm_entry, create_entry
 from app.speech.base import Speech
+from app.speech.gnani import (
+    GnaniAudioError,
+    GnaniAuthError,
+    GnaniError,
+    GnaniQuotaError,
+    GnaniRateLimitError,
+    GnaniServerError,
+    GnaniTimeoutError,
+)
 from app.speech.providers import get_stt, get_tts
 
 SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -95,6 +104,63 @@ async def turn(request: Request) -> dict[str, Any]:
         transcript = stt.transcribe(audio_bytes or b"", mime, lang_hint)
     except NotImplementedError as exc:
         raise _error(503, "provider_not_implemented") from exc
+    except GnaniAuthError as exc:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "bn": "Gnani পরিচয় যাচাইকরণ ব্যর্থ হয়েছে।",
+                "en": "Gnani STT authentication failed.",
+            },
+        ) from exc
+    except GnaniQuotaError as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "bn": "Gnani ক্রেডিট শেষ হয়ে গেছে। অনুগ্রহ করে টাইপ করে লিখুন।",
+                "en": "Gnani credit exhausted. Please type your entry.",
+            },
+        ) from exc
+    except GnaniRateLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "bn": "অনেক বেশি অনুরোধ। একটু পরে আবার চেষ্টা করুন।",
+                "en": "Too many requests to Gnani STT. Please wait a moment and try again.",
+            },
+        ) from exc
+    except GnaniTimeoutError as exc:
+        raise HTTPException(
+            status_code=504,
+            detail={
+                "bn": "Gnani সংযোগের সময় শেষ হয়ে গেছে। অনুগ্রহ করে টাইপ করে লিখুন।",
+                "en": "Gnani STT timed out. Please type your entry.",
+            },
+        ) from exc
+    except GnaniAudioError as exc:
+        msg = str(exc)
+        if "30 seconds" in msg:
+            raise _error(413, "audio_too_long", limit=30) from exc
+        if "only supports WAV" in msg or "ওয়েবএম" in msg:
+            raise HTTPException(
+                status_code=415,
+                detail={
+                    "bn": "Gnani STT ওয়েবএম সমর্থন করে না, WAV পাঠান।",
+                    "en": "Gnani STT only supports WAV/MP3/OGG; please send WAV.",
+                },
+            ) from exc
+        raise HTTPException(
+            status_code=400,
+            detail={"bn": "অডিও ফরম্যাট সমর্থিত নয় বা অসম্পূর্ণ।", "en": msg},
+        ) from exc
+    except (GnaniServerError, GnaniError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "bn": "Gnani স্পিচ সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে টাইপ করে লিখুন।",
+                "en": "Gnani STT service error. Please type your entry.",
+            },
+        ) from exc
+
     timings["stt"] = round((time.perf_counter() - started) * 1000, 1)
     transcript_text = transcript.text or text
 
@@ -133,6 +199,21 @@ async def turn(request: Request) -> dict[str, Any]:
         raise _error(503, "provider_not_implemented") from exc
     timings["tts"] = round((time.perf_counter() - started) * 1000, 1)
 
+    if settings.stt_provider == "gnani":
+        stt_name = f"gnani ({settings.gnani_stt_model or 'prisma-v2.5'})"
+    else:
+        stt_name = stt.name
+
+    if settings.tts_provider == "gnani":
+        extra_parts = [settings.gnani_tts_voice]
+        if speech.cached:
+            extra_parts.append("cached")
+        if speech.tts_fallback:
+            extra_parts.append("fallback")
+        tts_name = f"gnani ({', '.join(extra_parts)})"
+    else:
+        tts_name = tts.name
+
     return {
         "transcript": transcript_text,
         "entries": [draft.model_dump(mode="json") for draft in result.entries],
@@ -140,5 +221,6 @@ async def turn(request: Request) -> dict[str, Any]:
         "response_audio": _speech_response(speech),
         "ui_hint": result.ui_hint,
         "timings_ms": timings,
-        "providers": {"stt": stt.name, "tts": tts.name, "nlu": nlu_name},
+        "providers": {"stt": stt_name, "tts": tts_name, "nlu": nlu_name},
+        "tts_fallback": speech.tts_fallback,
     }
