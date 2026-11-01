@@ -13,7 +13,7 @@ class Speech(BaseModel):
     audio_bytes: bytes | None = None
     mime: str | None = None
     use_browser_tts: bool = True
-    tts_fallback: bool = False
+    tts_fallback: bool | str = False
     cached: bool = False
 
 

@@ -209,7 +209,13 @@ async def turn(request: Request) -> dict[str, Any]:
         if speech.cached:
             extra_parts.append("cached")
         if speech.tts_fallback:
-            extra_parts.append("fallback")
+            if isinstance(speech.tts_fallback, str):
+                short_reason = speech.tts_fallback
+                if len(short_reason) > 40:
+                    short_reason = short_reason[:37] + "..."
+                extra_parts.append(f"fallback: {short_reason}")
+            else:
+                extra_parts.append("fallback")
         tts_name = f"gnani ({', '.join(extra_parts)})"
     else:
         tts_name = tts.name

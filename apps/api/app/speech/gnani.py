@@ -20,6 +20,7 @@ import uuid
 import wave
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -79,6 +80,40 @@ def _wav_duration(audio_bytes: bytes) -> float | None:
         return None
 
 
+def _extract_gnani_error_message(response: httpx.Response) -> str:
+    """Extract error message from Gnani response payload without exposing sensitive data."""
+    try:
+        data = response.json()
+        if isinstance(data, dict):
+            # Direct message field
+            if "message" in data and isinstance(data["message"], str) and data["message"].strip():
+                return data["message"].strip()
+            # Error object with message: {"error": {"message": "..."}}
+            error_val = data.get("error")
+            if isinstance(error_val, dict) and "message" in error_val:
+                return str(error_val["message"]).strip()
+            if isinstance(error_val, str) and error_val.strip():
+                return error_val.strip()
+            # Detail object: {"detail": {"message": "..."}} or {"detail": "..."}
+            detail_val = data.get("detail")
+            if isinstance(detail_val, dict) and "message" in detail_val:
+                return str(detail_val["message"]).strip()
+            if isinstance(detail_val, str) and detail_val.strip():
+                return detail_val.strip()
+            # FastAPI validation error list: {"detail": [{"loc": [...], "msg": "..."}]}
+            if isinstance(detail_val, list) and detail_val:
+                first = detail_val[0]
+                if isinstance(first, dict) and "msg" in first:
+                    loc = " -> ".join(str(x) for x in first.get("loc", []))
+                    msg = str(first["msg"])
+                    return f"{msg} at {loc}" if loc else msg
+                return str(detail_val[0])
+    except Exception:
+        pass
+    text = response.text.strip()
+    return text if text else f"HTTP {response.status_code}"
+
+
 class GnaniPrismaSTT:
     """Gnani Prisma STT adapter implementing SpeechToText."""
 
@@ -99,7 +134,9 @@ class GnaniPrismaSTT:
         allow_live: bool = False,
     ) -> None:
         self.api_key = api_key
-        self.base_url = (base_url or "https://api.vachana.ai").rstrip("/")
+        self.base_url = (
+            base_url.strip() if base_url and str(base_url).strip() else "https://api.vachana.ai"
+        ).rstrip("/")
         self.model = model
         self.languages = languages or "bn-IN"
         self.format_type = format_type
@@ -330,7 +367,9 @@ class GnaniTimbreTTS:
         allow_live: bool = False,
     ) -> None:
         self.api_key = api_key
-        self.base_url = (base_url or "https://api.vachana.ai").rstrip("/")
+        self.base_url = (
+            base_url.strip() if base_url and str(base_url).strip() else "https://api.vachana.ai"
+        ).rstrip("/")
         self.model = model
         self.voice = voice
         self.language = language or "bn-IN"
@@ -375,26 +414,50 @@ class GnaniTimbreTTS:
 
         # Fallback to browser TTS if live calls are disabled without transport or no key
         if (self.transport is None and not self.allow_live) or not self.api_key:
-            logger.info("Gnani TTS disabled or key missing, falling back to browser TTS")
-            return Speech(audio_bytes=None, mime=None, use_browser_tts=True, tts_fallback=True)
+            reason = "api_key_missing" if not self.api_key else "live_calls_disabled"
+            logger.info(
+                "Gnani TTS disabled or key missing, falling back to browser TTS (%s)", reason
+            )
+            return Speech(audio_bytes=None, mime=None, use_browser_tts=True, tts_fallback=reason)
+
+        # Validate container and configure audio_config
+        if self.container == "mp3":
+            audio_config: dict[str, Any] = {
+                "sample_rate": self.sample_rate,
+                "container": "mp3",
+            }
+        elif self.container == "wav":
+            audio_config = {
+                "sample_rate": self.sample_rate,
+                "num_channels": 1,
+                "sample_width": 2,
+                "encoding": "pcm_s16le",
+                "container": "wav",
+            }
+        else:
+            reason = f"Unsupported TTS container: '{self.container}'. Supported: 'mp3', 'wav'."
+            logger.warning("gnani tts invalid container config: %s", reason)
+            return Speech(
+                audio_bytes=None,
+                mime=None,
+                use_browser_tts=True,
+                tts_fallback=reason,
+            )
 
         url = f"{self.base_url}/api/v1/tts/inference"
-        headers = {"X-API-Key-ID": self.api_key}
+        request_id = str(uuid.uuid4())
+        headers = {
+            "X-API-Key-ID": self.api_key,
+            "X-API-Request-ID": request_id,
+        }
 
-        encoding = "pcm_s16le" if self.container == "wav" else self.container
         payload = {
             "text": processed_text,
             "model": self.model,
             "voice": self.voice,
             "language": self.language,
             "speed": self.speed,
-            "audio_config": {
-                "sample_rate": self.sample_rate,
-                "num_channels": 1,
-                "sample_width": 2,
-                "encoding": encoding,
-                "container": self.container,
-            },
+            "audio_config": audio_config,
         }
 
         backoffs = [0.5, 1.0]
@@ -417,14 +480,14 @@ class GnaniTimbreTTS:
                         "latency_ms": latency,
                         "status": 504,
                     }
-                    logger.error("gnani tts timeout, falling back to browser tts", extra=extra)
+                    logger.warning("gnani tts timeout, falling back to browser tts", extra=extra)
                     return Speech(
                         audio_bytes=None,
                         mime=None,
                         use_browser_tts=True,
-                        tts_fallback=True,
+                        tts_fallback="timeout (504)",
                     )
-                except httpx.RequestError:
+                except httpx.RequestError as exc:
                     latency = round((time.perf_counter() - started) * 1000, 1)
                     if attempt < len(backoffs):
                         time.sleep(backoffs[attempt])
@@ -435,14 +498,16 @@ class GnaniTimbreTTS:
                         "latency_ms": latency,
                         "status": 502,
                     }
-                    logger.error(
-                        "gnani tts request error, falling back to browser tts", extra=extra
+                    logger.warning(
+                        "gnani tts request error, falling back to browser tts: %s",
+                        exc,
+                        extra=extra,
                     )
                     return Speech(
                         audio_bytes=None,
                         mime=None,
                         use_browser_tts=True,
-                        tts_fallback=True,
+                        tts_fallback="network_error (502)",
                     )
 
                 latency = round((time.perf_counter() - started) * 1000, 1)
@@ -471,22 +536,42 @@ class GnaniTimbreTTS:
                         cached=False,
                     )
 
+                # Non-2xx response from Gnani
+                resp_req_id = (
+                    response.headers.get("x-api-request-id")
+                    or response.headers.get("x-request-id")
+                    or request_id
+                )
+                raw_msg = _extract_gnani_error_message(response)
+                truncated_msg = raw_msg[:300] if len(raw_msg) > 300 else raw_msg
+
+                logger.warning(
+                    "gnani tts non-2xx response: status=%d request_id=%s message=%s",
+                    status,
+                    resp_req_id,
+                    truncated_msg,
+                    extra={
+                        "status": status,
+                        "request_id": resp_req_id,
+                        "gnani_message": truncated_msg,
+                    },
+                )
+
                 if status in (429, 500, 502, 503, 504) and attempt < len(backoffs):
                     time.sleep(backoffs[attempt])
                     continue
 
-                extra = {
-                    "model": self.model,
-                    "voice": self.voice,
-                    "latency_ms": latency,
-                    "status": status,
-                }
-                logger.error("gnani tts failed, falling back to browser tts", extra=extra)
+                fallback_reason = f"HTTP {status}: {truncated_msg}"
                 return Speech(
                     audio_bytes=None,
                     mime=None,
                     use_browser_tts=True,
-                    tts_fallback=True,
+                    tts_fallback=fallback_reason,
                 )
 
-        return Speech(audio_bytes=None, mime=None, use_browser_tts=True, tts_fallback=True)
+        return Speech(
+            audio_bytes=None,
+            mime=None,
+            use_browser_tts=True,
+            tts_fallback="failed_after_retries",
+        )

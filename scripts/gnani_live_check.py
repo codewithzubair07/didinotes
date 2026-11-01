@@ -19,7 +19,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "apps" / "api"))
 
 from app.settings import get_settings
-from app.speech.gnani import GnaniPrismaSTT, GnaniTimbreTTS
+from app.speech.gnani import GnaniError, GnaniPrismaSTT, GnaniTimbreTTS
+
+# Reconfigure stdout and stderr to UTF-8 so Bengali prints reliably on Windows
+if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
 
 def main() -> None:
@@ -70,7 +76,8 @@ def main() -> None:
     tts_ms = round((time.perf_counter() - t0) * 1000, 1)
 
     if not speech.audio_bytes or speech.tts_fallback:
-        print(f"FAILED: TTS did not return audio bytes (tts_fallback={speech.tts_fallback})")
+        reason = speech.tts_fallback if speech.tts_fallback else "no audio bytes returned"
+        print(f"FAILED: TTS did not return audio bytes (reason: {reason})")
         sys.exit(1)
 
     print(f"SUCCESS: Generated {len(speech.audio_bytes)} bytes in {tts_ms}ms (mime: {speech.mime})")
@@ -89,13 +96,16 @@ def main() -> None:
     )
 
     t0 = time.perf_counter()
-    transcript = stt.transcribe(speech.audio_bytes, speech.mime or "audio/mp3", "bn")
-    stt_ms = round((time.perf_counter() - t0) * 1000, 1)
-
-    print(f"SUCCESS: Transcribed in {stt_ms}ms")
-    print(f"Result transcript: '{transcript.text}'")
-    print(f"Confidence: {transcript.confidence}")
-    print("\nLive check completed successfully.")
+    try:
+        transcript = stt.transcribe(speech.audio_bytes, speech.mime or "audio/mp3", "bn")
+        stt_ms = round((time.perf_counter() - t0) * 1000, 1)
+        print(f"SUCCESS: Transcribed in {stt_ms}ms")
+        print(f"Result transcript: '{transcript.text}'")
+        print(f"Confidence: {transcript.confidence}")
+        print("\nLive check completed successfully.")
+    except (GnaniError, OSError, RuntimeError) as exc:
+        print(f"FAILED: STT transcription failed (reason: {exc})")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

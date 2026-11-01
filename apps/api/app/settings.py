@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     gnani_timeout_s: float = 30.0
     tts_cache_dir: Path = REPO_ROOT / ".cache" / "tts"
 
+    @field_validator("gnani_base_url", mode="before")
+    @classmethod
+    def default_gnani_base_url(cls, val: object) -> str:
+        if val is None or not str(val).strip():
+            return "https://api.vachana.ai"
+        return str(val).strip()
+
     @field_validator("tts_cache_dir", mode="after")
     @classmethod
     def resolve_cache_dir(cls, val: Path) -> Path:

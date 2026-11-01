@@ -310,7 +310,7 @@ def test_tts_failure_falls_back_to_browser(tmp_path: Path):
     result = tts.speak("নমস্কার", "bn")
     assert result.audio_bytes is None
     assert result.use_browser_tts is True
-    assert result.tts_fallback is True
+    assert "HTTP 500" in str(result.tts_fallback)
 
 
 # -----------------------------------------------------------------------------
@@ -387,6 +387,8 @@ def make_test_client(tmp_path: Path, **overrides) -> TestClient:
         config_dir=config_dir,
         audio_dir=tmp_path / "audio",
         rate_limit_per_minute=overrides.pop("rate_limit_per_minute", 1000),
+        stt_provider=overrides.pop("stt_provider", "mock"),
+        tts_provider=overrides.pop("tts_provider", "browser"),
         **overrides,
     )
     return TestClient(create_app(settings))
@@ -478,7 +480,130 @@ def test_turn_api_tts_fallback_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["tts_fallback"] is True
+    assert "HTTP 500" in str(data["tts_fallback"])
     assert data["response_audio"] is None
     assert "fallback" in data["providers"]["tts"]
+
+
+# -----------------------------------------------------------------------------
+# Gnani Live Bugfix & Configuration Regression Tests
+# -----------------------------------------------------------------------------
+
+
+def test_tts_mp3_body_has_no_encoding_fields(tmp_path: Path):
+    captured_payloads = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode("utf-8"))
+        captured_payloads.append(body)
+        return httpx.Response(200, content=b"AUDIO_DATA")
+
+    transport = httpx.MockTransport(handler)
+
+    # 1. MP3 container: must send only sample_rate and container
+    tts_mp3 = GnaniTimbreTTS(
+        api_key="test-key",
+        container="mp3",
+        sample_rate=24000,
+        cache_dir=tmp_path / "tts_mp3",
+        transport=transport,
+    )
+    tts_mp3.speak("নমস্কার", "bn")
+
+    assert len(captured_payloads) == 1
+    mp3_config = captured_payloads[0]["audio_config"]
+    assert mp3_config == {"sample_rate": 24000, "container": "mp3"}
+    assert "encoding" not in mp3_config
+    assert "num_channels" not in mp3_config
+    assert "sample_width" not in mp3_config
+
+    # 2. WAV container: must send encoding pcm_s16le
+    tts_wav = GnaniTimbreTTS(
+        api_key="test-key",
+        container="wav",
+        sample_rate=16000,
+        cache_dir=tmp_path / "tts_wav",
+        transport=transport,
+    )
+    tts_wav.speak("নমস্কার", "bn")
+
+    assert len(captured_payloads) == 2
+    wav_config = captured_payloads[1]["audio_config"]
+    assert wav_config == {
+        "sample_rate": 16000,
+        "num_channels": 1,
+        "sample_width": 2,
+        "encoding": "pcm_s16le",
+        "container": "wav",
+    }
+
+
+def test_tts_400_response_logs_message_not_text(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+):
+    gnani_error_msg = (
+        "Input should be 'linear_pcm', 'pcm_s16le', 'pcm_mulaw', 'pcm_alaw' "
+        "or 'oggopus' at body -> audio_config -> encoding"
+    )
+    sensitive_phrase = "আমার অতি গোপন তথ্য"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400,
+            headers={"X-API-Request-ID": "req-err-400"},
+            json={"message": gnani_error_msg},
+        )
+
+    transport = httpx.MockTransport(handler)
+    tts = GnaniTimbreTTS(
+        api_key="secret-api-key",
+        cache_dir=tmp_path / "tts",
+        transport=transport,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        result = tts.speak(sensitive_phrase, "bn")
+
+    assert result.audio_bytes is None
+    assert result.use_browser_tts is True
+    assert gnani_error_msg in str(result.tts_fallback)
+
+    # Log verification at WARNING level
+    warning_logs = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warning_logs) >= 1
+
+    all_logs = caplog.text
+    # Confirms Gnani's message is logged
+    assert "Input should be" in all_logs
+    # Confirms request id is logged
+    assert "req-err-400" in all_logs
+    # Confirms sensitive user text and API key are NEVER in logs
+    assert sensitive_phrase not in all_logs
+    assert "secret-api-key" not in all_logs
+
+
+def test_empty_gnani_base_url_falls_back_to_default():
+    default_url = "https://api.vachana.ai"
+
+    # Settings validation
+    s_empty = Settings(gnani_base_url="")
+    assert s_empty.gnani_base_url == default_url
+
+    s_whitespace = Settings(gnani_base_url="   ")
+    assert s_whitespace.gnani_base_url == default_url
+
+    # STT adapter default
+    stt_empty = GnaniPrismaSTT(api_key="k", base_url="")
+    assert stt_empty.base_url == default_url
+
+    stt_spaces = GnaniPrismaSTT(api_key="k", base_url="   ")
+    assert stt_spaces.base_url == default_url
+
+    # TTS adapter default
+    tts_empty = GnaniTimbreTTS(api_key="k", base_url="")
+    assert tts_empty.base_url == default_url
+
+    tts_spaces = GnaniTimbreTTS(api_key="k", base_url="   ")
+    assert tts_spaces.base_url == default_url
+
 

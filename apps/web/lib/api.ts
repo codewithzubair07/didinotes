@@ -30,6 +30,7 @@ export type TurnResponse = {
   ui_hint: string;
   timings_ms: { stt: number; nlu: number; tts: number };
   providers: { stt: string; tts: string };
+  tts_fallback?: boolean | string;
 };
 
 export type ClaimRow = {
