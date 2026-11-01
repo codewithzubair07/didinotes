@@ -28,9 +28,19 @@ export type TurnResponse = {
   response_text: string;
   response_audio: string | null;
   ui_hint: string;
-  timings_ms: { stt: number; nlu: number; tts: number };
-  providers: { stt: string; tts: string };
+  timings_ms: { stt: number; nlu: number; tts: number; llm?: number };
+  providers: { stt: string; tts: string; nlu?: string };
   tts_fallback?: boolean | string;
+  dev?: {
+    stt_model: string;
+    stt_format: string;
+    stt_request_id: string | null;
+    tts_model: string;
+    tts_voice: string;
+    tts_cached: boolean;
+    tts_request_id: string | null;
+    tts_fallback: boolean | string;
+  };
 };
 
 export type ClaimRow = {

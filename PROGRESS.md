@@ -176,3 +176,54 @@ Verified against the running API with curl-equivalent calls: steps 2 to 4 (`ask_
 - `scripts/`: `ruff check scripts/gnani_live_check.py scripts/tts_voice_samples.py` -> All checks passed!
 - `apps/web`: `npm run typecheck` -> 0 errors.
 - `apps/web`: `npm run build` -> Compiled successfully, 4 routes generated.
+
+
+## Milestone 5: Browser Recording, Dev Panel & Real-Speech Evaluation (done)
+
+### What was done
+- **B1. Browser Audio Recording & WAV Encoding**:
+  - Implemented `apps/web/lib/wav.ts` providing client-side 16 kHz Mono 16-bit PCM WAV encoding and resampling via Web Audio `OfflineAudioContext` / `AudioContext` without third-party dependencies.
+  - Uploads audio as `recording.wav` with MIME `audio/wav`.
+  - Added visible recording timer with automatic auto-stop at 29 seconds to prevent Gnani 30-second rejection.
+  - Added backend support for `audio/wave` in `ALLOWED_MIMES` and `SUPPORTED_STT_MIMES`.
+  - Added friendly bilingual alerts for mic permission denied, recording too long, rate limit busy (429), quota exhausted (402), and speech service errors.
+  - Handled browser audio autoplay restrictions by detecting promise rejection in `playBase64Audio()` and surfacing a prominent "Tap to hear" (🔊 শুনতে চাপুন) button.
+  - Created native Node.js test script `apps/web/scripts/check-wav.mjs` (runnable via `npm run test:wav`) verifying RIFF header, length, 16-bit clamping, and resampling ratios without adding testing framework dependencies.
+- **B2. Dev Panel Telemetry**:
+  - Enhanced `POST /api/turn` with a `dev` telemetry payload exposing STT model, STT format, STT request ID, TTS model, TTS voice, TTS latency, TTS cache hit status, TTS request ID, and TTS fallback reason.
+  - Rendered comprehensive telemetry in `apps/web/app/page.tsx` when `NEXT_PUBLIC_DEV_PANEL=true`.
+- **B3. Manual Browser Test Script**:
+  - Added a 10-step manual browser test script in `README.md` covering mic permissions, hold-to-talk, 29s auto-stop, typed input fallback, interactive readback, voice correction, diary editing, monthly claim sheets, CSV export, and print preview.
+- **B4. STT Evaluation Tool Upgrade (`eval/run_stt_eval.py`)**:
+  - Upgraded to read `eval/audio/manifest.jsonl`.
+  - Added `--configs` support (`eval/stt_configs.json`) running 7 candidate STT configurations sequentially (never parallel).
+  - Reports WER and CER via `jiwer`, median and 95th percentile latencies, empty transcript count, and error counts.
+  - Implemented unified text normalization: Unicode NFC, Bengali digits to ASCII (০-৯ -> 0-9), punctuation/Dari ('।') removal, lowercasing, and whitespace collapse.
+  - Added `--dry-run` and `--max-calls` safety guards, with automatic early stopping on consecutive 402/429 errors.
+  - Labeled all outputs with timestamp, clip count, and `"small sample, indicative only"`.
+- **B5. End-to-End Evaluation Pipeline (`eval/run_e2e_eval.py`)**:
+  - Implemented pipeline: Audio -> STT -> Extractor vs Expected Entries, reporting field accuracy (`task_type`, `count`, `date`, `beneficiary_ref`) next to the text-only baseline and WER.
+  - Added automated Punctuation Sensitivity Test: verified that rules extractor behaves with 100% identity (0 discrepancies) on sample sentences with or without trailing Bengali Dari '।' or ASCII period '.'.
+  - Documented proposed lexicon and extractor improvements for user review without modifying existing extraction logic.
+- **B6. Noise Dataset Augmentation (`eval/make_noisy_set.py`)**:
+  - Created utility to generate 20 dB, 10 dB, and 5 dB SNR audio variants from clean clips and user-supplied background noise into `eval/audio/noisy/` and extend `eval/audio/manifest.jsonl`.
+  - Verified `eval/audio/` and audio files are ignored in `.gitignore`.
+- **B7. Dataset Collection & Recording Guide (`docs/RECORDING_GUIDE.md`)**:
+  - Authored a comprehensive field recording guide covering privacy governance, informed consent, synthetic patient references, 50/50 quiet vs noise mix, Bengali/Benglish phrasing, manifest formatting with examples, and execution workflows.
+- **B8. Documentation Updates**:
+  - Updated `README.md`, `ARCHITECTURE.md`, `DECISIONS.md`, and `PROGRESS.md`.
+
+### What is NOT done / unverified
+- Browser microphone hardware capture and audio playback remain unverified until the 10-step manual browser test script is executed by the user.
+- Real field speech audio has not been recorded or committed. Speech accuracy figures under real rural background noise remain unmeasured until real recordings are collected per `docs/RECORDING_GUIDE.md`.
+- Native speaker review of `config/lexicon.yaml` and `config/i18n.yaml` by local health workers in West Bengal remains pending.
+- Incentive amounts in `config/incentives.yaml` remain unverified sample data.
+
+### Test results
+- `apps/api`: `pytest -q` -> **190 passed** in 17.93s.
+- `apps/api`: `ruff check .` -> All checks passed!
+- `eval/`: `ruff check eval/` -> All checks passed!
+- `apps/web`: `node scripts/check-wav.mjs` -> All WAV encoder and resampler checks passed.
+- `apps/web`: `npm run typecheck` -> 0 errors.
+- `apps/web`: `npm run build` -> Compiled successfully, 4 routes generated.
+

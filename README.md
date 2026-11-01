@@ -242,23 +242,44 @@ Output audio files are saved to `eval/audio/voices/{voice}.mp3` (ignored by Git)
 
 ---
 
+## Manual Browser Test Script (10 Steps)
+
+> [!WARNING]
+> **Verification Status**:
+> Browser microphone capture, audio recording/playback, and live browser speech synthesis have been tested via unit tests, TypeScript compilation, and production builds, but **remain unverified until you execute this manual 10-step script in your browser**.
+
+1. **Microphone Permission**: Open [http://localhost:3000](http://localhost:3000) in Chrome/Edge. Press the large Talk button; the browser should prompt for microphone permission. Denying permission displays the bilingual notice *"Microphone access was denied. Please allow microphone access or type below."* Grant permission.
+2. **Hold-to-Talk Recording**: Press and hold the Talk button, speak *"aaj Rina ANC visit korlam"*, and release. The button pulses red with an active timer. On release, the client resamples and encodes 16 kHz Mono 16-bit PCM WAV (`recording.wav`) and uploads to `/api/turn`.
+3. **Long Recording Auto-Stop**: Press and hold the Talk button without speaking for 29 seconds. Verify the timer badge reaches `29s / 29s` and automatically stops and sends the audio, preventing the 30-second Gnani limit rejection.
+4. **Typed-Input Fallback**: If speech is unavailable or fails, type *"aaj Rina ANC visit korlam"* into the text field and click **Send**. The assistant asks for missing count: *"কত জনের ANC ভিজিট করেছেন?"* (How many people's ANC visit did you do?).
+5. **Interactive Confirmation (Readback)**: Type or speak *"2 jon"*. The system enters the confirmation state and displays the readback card with **YES (হ্যাঁ)**, **NO (না)**, and **EDIT (সম্পাদনা)** buttons.
+6. **Voice Correction**: Click or say **EDIT (সম্পাদনা)** or say *"na, 3 jon"*. The system updates the draft count to 3 without creating duplicate entries. Click **YES (হ্যাঁ)** to confirm.
+7. **Diary Screen Inspection & Edit**: Navigate to the **Diary (ডায়েরি)** tab. The confirmed entry appears under today's work. Click **Edit**, adjust the count or beneficiary reference, and save.
+8. **Monthly Claim Sheet**: Navigate to the **Claim (দাবি)** tab for the current month. The confirmed entry appears aggregated in the activity summary and register lines.
+9. **CSV Export**: Click **Download CSV**. Verify the downloaded CSV file contains the official headers and confirmed claim row.
+10. **Printable Summary**: Click **Print page**. Verify the print preview formats cleanly, renders the sample banner, and includes register-ready lines.
+
+---
+
 ## Testing Status
 
 | Suite | Scope | Result |
 |---|---|---|
-| `pytest -q` | `apps/api/tests` (187 tests) | **187 passed**, 1 warning |
+| `pytest -q` | `apps/api/tests` (190 tests) | **190 passed** |
 | `ruff check .` | `apps/api`, `eval/`, `scripts/` | **All checks passed** |
+| `check-wav.mjs` | `apps/web/scripts` (WAV 16k PCM & resampler) | **All checks passed** |
 | `npm run typecheck` | `apps/web` (TypeScript strict) | **0 errors** |
 | `npm run build` | `apps/web` (Next.js 15 production build) | **Compiled successfully**, 4 routes generated |
 | `run_extraction_eval.py` | 60 items in `eval/utterances.jsonl` | **100.0% exact match** (60/60) |
+| `punctuation_sensitivity` | Sample sentences with bare, '।', and '.' | **0 discrepancies** (100% robust) |
 | `smoke.ps1` | End-to-end conversation & persistence | **PASSED** |
 
 ---
 
 ## Limitations and Not Verified
 
-1. **Lexicon and Bengali Strings**: `config/lexicon.yaml` and `config/i18n.yaml` are initial developer drafts and **require native speaker review** for colloquial West Bengal ASHA terminology.
-2. **Incentive Amounts**: Amounts in `config/incentives.yaml` are sample data only and marked `verified: false`. The system deliberately displays *"amount not configured"* on monthly claim summaries until verified.
-3. **Rules-Based Extractor Phrasings**: The rules-based extractor is optimized for standard ASHA reporting phrasing and the 60 evaluation items. Highly varied syntax requires either the LLM fallback or continuous lexicon expansion.
-4. **Real-World Speech Accuracy Untested**: No real ASHA speech recordings have been collected or committed. Accuracy with background field noise (traffic, clinics, rain) cannot be measured until real field recordings are conducted.
-5. **Live Gnani Endpoints**: Unit tests mock HTTP responses using `httpx.MockTransport`. Live API accuracy and latency depend on Gnani cloud performance and network conditions.
+1. **Browser Microphone & Playback Unverified**: Real browser microphone hardware capture, browser audio playback, and live Gnani round-trip through the browser UI are unverified until the 10-step manual script above is executed.
+2. **Real Field Speech Dataset & Accuracy**: No real ASHA speech recordings have been collected or committed. Real-world accuracy under rural field noise (traffic, clinics, rain) cannot be claimed until real recordings are collected per `docs/RECORDING_GUIDE.md`.
+3. **Lexicon and Bengali Terminology**: `config/lexicon.yaml` and `config/i18n.yaml` are initial developer drafts and **require native speaker review** with local health workers in West Bengal.
+4. **Sample Incentive Amounts**: Amounts in `config/incentives.yaml` are sample data only and marked `verified: false`. The system deliberately displays *"amount not configured"* on monthly claim summaries until verified.
+5. **Live Gnani Endpoints in Automated Tests**: Automated backend unit tests strictly mock HTTP calls via `httpx.MockTransport` and `conftest.py` forces mock speech adapters during testing. Live API accuracy and latency depend on Gnani cloud infrastructure.

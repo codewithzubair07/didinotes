@@ -1,0 +1,54 @@
+[
+  {
+    "name": "v2.5_bn-IN_verbatim",
+    "model": "",
+    "languages": "bn-IN",
+    "format": "verbatim",
+    "context": false
+  },
+  {
+    "name": "v2.5_bn-IN_transcribe",
+    "model": "",
+    "languages": "bn-IN",
+    "format": "transcribe",
+    "context": false
+  },
+  {
+    "name": "v3.0_bn-IN_transcribe",
+    "model": "prisma-v3.0",
+    "languages": "bn-IN",
+    "format": "transcribe",
+    "context": false
+  },
+  {
+    "name": "v3.0_bn-IN_en-IN_codemix",
+    "model": "prisma-v3.0",
+    "languages": "bn-IN,en-IN",
+    "format": "codemix",
+    "context": false
+  },
+  {
+    "name": "v3.0_bn-IN_en-IN_transcribe",
+    "model": "prisma-v3.0",
+    "languages": "bn-IN,en-IN",
+    "format": "transcribe",
+    "context": false
+  },
+  {
+    "name": "v3.0_bn-IN_transliterate",
+    "model": "prisma-v3.0",
+    "languages": "bn-IN",
+    "format": "transliterate",
+    "context": false
+  },
+  {
+    "name": "v3.0_with_context",
+    "model": "prisma-v3.0",
+    "languages": "bn-IN,en-IN",
+    "format": "codemix",
+    "context": true,
+    "topic": "ASHA diary daily health worker records",
+    "keyterms": ["ANC", "PNC", "visit", "teeka", "baccha", "Rina", "HB", "iron"]
+  }
+]
+

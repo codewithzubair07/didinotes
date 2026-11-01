@@ -2,13 +2,26 @@
 
 Demo. Do not enter real patient data.
 
+## Client-side Audio Pipeline
+
+```mermaid
+flowchart LR
+    MIC[Browser Mic] --> MR[MediaRecorder]
+    MR --> DEC[AudioContext.decodeAudioData]
+    DEC --> RES["OfflineAudioContext Resampler (16 kHz Mono)"]
+    RES --> ENC["encodeWav (16-bit PCM WAV)"]
+    ENC --> UP["POST /api/turn (audio/wav, recording.wav)"]
+```
+
+Client audio is recorded via standard Web Audio APIs, decoded, resampled to 16 kHz Mono, and encoded into 16-bit linear PCM WAV client-side (`apps/web/lib/wav.ts`) before upload, ensuring full compatibility with Gnani Prisma STT (which rejects WebM) without third-party npm packages.
+
 ## Turn pipeline
 
 Each `POST /api/turn` request runs through these stages in order:
 
 ```mermaid
 flowchart LR
-    A[Audio upload or JSON text] --> B[Validate and rate-limit]
+    A[WAV audio upload or JSON text] --> B[Validate and rate-limit]
     B --> C{STT provider}
     C -->|mock| D[Transcript text]
     C -->|gnani| G["GnaniPrismaSTT (POST /stt/v3)"]
@@ -24,7 +37,7 @@ flowchart LR
     L -->|Spoken BN + Cache Hit| M[Base64 Audio Bytes]
     L -->|Synthesized| M
     L -->|Failure| K
-    K --> RES[JSON response]
+    K --> RES[JSON response + Dev telemetry]
     M --> RES
 ```
 
@@ -32,6 +45,10 @@ Audio is held in memory during the request and is never written to disk.
 
 ## Layers
 
+- `apps/web`:
+  - `lib/wav.ts`: client-side 16 kHz mono 16-bit PCM WAV encoder and resampler using `OfflineAudioContext` / `AudioContext`.
+  - `lib/speech.ts`: browser speech synthesis fallback and base64 audio player with autoplay blocked fallback detection.
+  - `app/page.tsx`: Talk screen with hold-to-talk button, 29-second auto-stop timer, friendly error alerts, readback confirmation cards, and Dev Panel (`NEXT_PUBLIC_DEV_PANEL`).
 - `app/speech`:
   - `SpeechToText` and `TextToSpeech` protocols (`base.py`). `confidence` is `float | None` because Gnani STT does not return confidence scores.
   - `mock.py`: `MockSTT` (extracts text or echo) and `BrowserTTS` (flags `use_browser_tts=True`).

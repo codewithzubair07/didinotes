@@ -11,7 +11,29 @@ const STRINGS = {
   toggle: { bn: "English", en: "বাংলা" },
   hold_to_talk: { bn: "ধরে রেখে বলুন", en: "Hold to talk" },
   recording: { bn: "শোনা হচ্ছে...", en: "Listening..." },
+  recording_time: { bn: "রেকর্ডিং হচ্ছে...", en: "Recording..." },
   mic_unavailable: { bn: "মাইক্রোফোন ব্যবহার করা যাচ্ছে না। নিচে লিখুন।", en: "Microphone not available. Type below." },
+  mic_denied: {
+    bn: "মাইক্রোফোন ব্যবহারের অনুমতি দেওয়া হয়নি। অনুগ্রহ করে অনুমতি দিন অথবা নিচে লিখুন।",
+    en: "Microphone access was denied. Please allow microphone access or type below.",
+  },
+  recording_too_long: {
+    bn: "রেকর্ডিং ২৯ সেকেন্ডের বেশি হতে পারবে না।",
+    en: "Recording cannot exceed 29 seconds.",
+  },
+  speech_busy: {
+    bn: "স্পিচ সার্ভার এখন ব্যস্ত। একটু পরে আবার চেষ্টা করুন অথবা নিচে লিখুন।",
+    en: "Speech service is busy. Please try again shortly or type below.",
+  },
+  no_credit: {
+    bn: "স্পিচ ক্রেডিট শেষ হয়ে গেছে। অনুগ্রহ করে নিচে লিখুন।",
+    en: "Speech credit exhausted. Please type below.",
+  },
+  service_error: {
+    bn: "স্পিচ সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে নিচে লিখুন।",
+    en: "Speech service error. Please type below.",
+  },
+  tap_to_hear: { bn: "শুনতে চাপুন", en: "Tap to hear" },
   type_placeholder: { bn: "এখানে লিখুন", en: "Type here" },
   send: { bn: "পাঠান", en: "Send" },
   yes: { bn: "হ্যাঁ", en: "YES" },

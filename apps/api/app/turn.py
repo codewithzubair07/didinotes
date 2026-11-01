@@ -25,7 +25,7 @@ from app.speech.gnani import (
 from app.speech.providers import get_stt, get_tts
 
 SESSION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-ALLOWED_MIMES = {"audio/wav", "audio/x-wav", "audio/webm", "audio/ogg", "audio/mpeg"}
+ALLOWED_MIMES = {"audio/wav", "audio/x-wav", "audio/wave", "audio/webm", "audio/ogg", "audio/mpeg"}
 
 router = APIRouter()
 
@@ -229,4 +229,24 @@ async def turn(request: Request) -> dict[str, Any]:
         "timings_ms": timings,
         "providers": {"stt": stt_name, "tts": tts_name, "nlu": nlu_name},
         "tts_fallback": speech.tts_fallback,
+        "dev": {
+            "stt_model": (
+                settings.gnani_stt_model or "prisma-v2.5"
+                if settings.stt_provider == "gnani"
+                else "mock"
+            ),
+            "stt_format": (
+                settings.gnani_stt_format or "default"
+                if settings.stt_provider == "gnani"
+                else "n/a"
+            ),
+            "stt_request_id": transcript.request_id,
+            "tts_model": (
+                settings.gnani_tts_model if settings.tts_provider == "gnani" else "browser"
+            ),
+            "tts_voice": settings.gnani_tts_voice if settings.tts_provider == "gnani" else "n/a",
+            "tts_cached": speech.cached,
+            "tts_request_id": speech.request_id,
+            "tts_fallback": speech.tts_fallback,
+        },
     }

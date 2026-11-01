@@ -32,6 +32,7 @@ logger = logging.getLogger("didinotes.gnani")
 SUPPORTED_STT_MIMES = {
     "audio/wav",
     "audio/x-wav",
+    "audio/wave",
     "audio/mpeg",
     "audio/mp3",
     "audio/ogg",
@@ -273,7 +274,7 @@ class GnaniPrismaSTT:
                         raise GnaniAudioError("Audio was truncated by STT service")
 
                     transcript_text = data.get("transcript") or ""
-                    return Transcript(text=transcript_text, confidence=None)
+                    return Transcript(text=transcript_text, confidence=None, request_id=resp_req_id)
 
                 # Handle errors
                 if status in (401, 403):
@@ -521,7 +522,13 @@ class GnaniTimbreTTS:
                     except Exception as exc:
                         logger.warning("Failed to write TTS cache file: %s", exc)
 
+                    resp_req_id = (
+                        response.headers.get("x-api-request-id")
+                        or response.headers.get("x-request-id")
+                        or request_id
+                    )
                     extra = {
+                        "request_id": resp_req_id,
                         "model": self.model,
                         "voice": self.voice,
                         "latency_ms": latency,
@@ -534,6 +541,7 @@ class GnaniTimbreTTS:
                         use_browser_tts=False,
                         tts_fallback=False,
                         cached=False,
+                        request_id=resp_req_id,
                     )
 
                 # Non-2xx response from Gnani

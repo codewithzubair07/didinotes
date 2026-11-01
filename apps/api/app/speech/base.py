@@ -7,6 +7,7 @@ class Transcript(BaseModel):
     text: str
     # Confidence score (0.0 to 1.0). None when the provider (e.g. Gnani Prisma) does not return one.
     confidence: float | None = None
+    request_id: str | None = None
 
 
 class Speech(BaseModel):
@@ -15,6 +16,7 @@ class Speech(BaseModel):
     use_browser_tts: bool = True
     tts_fallback: bool | str = False
     cached: bool = False
+    request_id: str | None = None
 
 
 class SpeechToText(Protocol):
