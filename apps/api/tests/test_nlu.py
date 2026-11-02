@@ -66,6 +66,26 @@ def test_parse_number_none_when_absent():
 @pytest.mark.parametrize(
     "text, expected",
     [
+        ("২ জন।", 2),
+        ("duijon", 2),
+        ("দুইজন", 2),
+        ("ekjon", 1),
+        ("একজন", 1),
+        ("tinjon", 3),
+        ("তিনজন", 3),
+        ("doshjon", 10),
+        ("দশজন", 10),
+        ("2.", 2),
+        ("2,", 2),
+    ],
+)
+def test_parse_number_compounds_and_punctuation(text, expected):
+    assert parse_number(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
         ("aaj", TODAY),
         ("আজ", TODAY),
         ("gotokal", date(2026, 10, 28)),

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import "./globals.css";
 import { LangProvider } from "@/lib/lang";
 import { Nav } from "@/components/Nav";
@@ -10,7 +10,7 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="bn">
+    <html suppressHydrationWarning lang="bn">
       <body className="bg-white text-black">
         <LangProvider>
           <div className="bg-black px-3 py-2 text-center text-sm font-bold text-white">

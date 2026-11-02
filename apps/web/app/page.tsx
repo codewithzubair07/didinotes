@@ -9,14 +9,26 @@ import { convertBlobTo16kMonoWav } from "@/lib/wav";
 
 const DEV_PANEL = process.env.NEXT_PUBLIC_DEV_PANEL === "true";
 
+let memorySessionId: string | null = null;
+
 function sessionId(): string {
   const key = "asha_session";
-  let id = window.localStorage.getItem(key);
-  if (!id) {
-    id = Math.random().toString(36).slice(2, 12);
-    window.localStorage.setItem(key, id);
+  try {
+    let id = typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
+    if (!id) {
+      id = memorySessionId || Math.random().toString(36).slice(2, 12);
+      memorySessionId = id;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, id);
+      }
+    }
+    return id;
+  } catch {
+    if (!memorySessionId) {
+      memorySessionId = Math.random().toString(36).slice(2, 12);
+    }
+    return memorySessionId;
   }
-  return id;
 }
 
 export default function TalkPage() {

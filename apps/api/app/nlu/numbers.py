@@ -1,5 +1,15 @@
+import re
+
 from app.config_loader import Lexicon, default_lexicon
 from app.nlu.text import normalise, tokenize
+
+CLASSIFIER_SUFFIXES = r"(?:jon|জন|ta|টা|to|টো|te|টে|ti|টি)?"
+
+EXTRA_NUMBER_WORDS: list[tuple[str, int]] = [
+    ("দুটো", 2),
+    ("duto", 2),
+    ("দু", 2),
+]
 
 
 def number_index(lexicon: Lexicon) -> dict[str, int]:
@@ -11,10 +21,35 @@ def number_index(lexicon: Lexicon) -> dict[str, int]:
 
 
 def parse_number(text: str, lexicon: Lexicon | None = None) -> int | None:
-    index = number_index(lexicon or default_lexicon())
-    for token in tokenize(normalise(text)):
+    lex = lexicon or default_lexicon()
+    norm = normalise(text)
+
+    # 1. Direct digits in tokens
+    for token in tokenize(norm):
         if token.isdigit():
             return int(token)
+
+    # 2. Number words and compound forms with classifier suffixes (e.g. duijon, দুইজন, ekta)
+    word_pairs: list[tuple[str, int]] = []
+    for val, words in lex.number_words.items():
+        for w in words:
+            word_pairs.append((normalise(w), val))
+    for alias, val in EXTRA_NUMBER_WORDS:
+        if not any(w == alias for w, _ in word_pairs):
+            word_pairs.append((alias, val))
+
+    word_pairs.sort(key=lambda x: len(x[0]), reverse=True)
+    for word, val in word_pairs:
+        pattern = re.compile(
+            rf"(?:^|[^\u0980-\u09ff\w])({re.escape(word)}){CLASSIFIER_SUFFIXES}(?=$|[^\u0980-\u09ff\w])",
+            re.IGNORECASE,
+        )
+        if pattern.search(norm):
+            return val
+
+    # 3. Exact match in number_index
+    index = number_index(lex)
+    for token in tokenize(norm):
         if token in index:
             return index[token]
     return None

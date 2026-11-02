@@ -124,7 +124,13 @@ def test_rate_limit_returns_429(tmp_path):
     assert response.status_code == 429
 
 
-def test_provider_switch_to_gnani_reports_not_implemented(tmp_path):
+def test_provider_switch_to_gnani_reports_not_implemented(tmp_path, monkeypatch):
+    from app.speech.gnani import GnaniPrismaSTT
+
+    monkeypatch.setattr(
+        "app.speech.providers.GnaniPrismaSTT",
+        lambda **kw: GnaniPrismaSTT(**{**kw, "allow_live": False}),
+    )
     client = make_app(tmp_path, stt_provider="gnani")
     response = client.post(
         "/api/turn",
@@ -152,3 +158,44 @@ def test_clinical_refusal_over_api(tmp_path, text):
     body = client.post("/api/turn", json={"session_id": "s11", "text": text}).json()
     assert body["ui_hint"] == "refusal"
     assert "ANM" in body["response_text"]
+
+
+@pytest.mark.parametrize(
+    "count_input",
+    ["2 jon", "২ জন।", "দুই জন", "duijon", "2", "দুইজন"],
+)
+def test_multi_turn_follow_up_count_over_api(tmp_path, count_input):
+    client = make_app(tmp_path)
+    session_id = f"s_count_{abs(hash(count_input)) % 100000}"
+    first = client.post(
+        "/api/turn",
+        json={"session_id": session_id, "text": "aaj Rina ANC visit korlam"},
+    ).json()
+    assert first["ui_hint"] == "ask_field"
+
+    second = client.post(
+        "/api/turn",
+        json={"session_id": session_id, "text": count_input},
+    ).json()
+    assert second["ui_hint"] == "confirm"
+    assert second["entries"][0]["count"] == 2
+    assert second["entries"][0]["task_type"] == "antenatal_visit"
+    assert second["entries"][0]["beneficiary_ref"] == "R"
+
+
+def test_multi_turn_follow_up_count_via_audio(tmp_path):
+    client = make_app(tmp_path)
+    session_id = "s_audio_count"
+    first = client.post(
+        "/api/turn",
+        json={"session_id": session_id, "text": "aaj Rina ANC visit korlam"},
+    ).json()
+    assert first["ui_hint"] == "ask_field"
+
+    second = client.post(
+        "/api/turn",
+        data={"session_id": session_id, "text": "২ জন।"},
+        files={"audio": ("voice.wav", wav_bytes(1), "audio/wav")},
+    ).json()
+    assert second["ui_hint"] == "confirm"
+    assert second["entries"][0]["count"] == 2

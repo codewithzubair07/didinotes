@@ -375,6 +375,21 @@ def test_startup_validation_rejects_empty_gnani_key():
     validate_startup_settings(s_mock)
 
 
+def test_gnani_providers_from_settings_have_allow_live_true():
+    """Verify Gnani STT/TTS adapters built from Settings have allow_live=True for real app usage."""
+    from app.speech.providers import get_stt, get_tts
+
+    s_stt = Settings(stt_provider="gnani", gnani_api_key="test-key")
+    stt = get_stt(s_stt)
+    assert isinstance(stt, GnaniPrismaSTT)
+    assert stt.allow_live is True
+
+    s_tts = Settings(tts_provider="gnani", gnani_api_key="test-key")
+    tts = get_tts(s_tts)
+    assert isinstance(tts, GnaniTimbreTTS)
+    assert tts.allow_live is True
+
+
 # -----------------------------------------------------------------------------
 # /api/turn Integration Tests with Gnani
 # -----------------------------------------------------------------------------

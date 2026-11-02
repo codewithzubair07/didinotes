@@ -225,3 +225,21 @@ def test_yes_in_idle_with_nothing_pending_says_nothing_to_confirm():
     result = turn(SessionState(), "hyan")
     assert result.ui_hint == "idle"
     assert result.response_text == "এখন নিশ্চিত করার কিছু নেই। কী কাজ করেছেন বলুন।"
+
+
+@pytest.mark.parametrize(
+    "count_input",
+    ["2 jon", "২ জন।", "দুই জন", "duijon", "2", "দুইজন"],
+)
+def test_follow_up_turn_waiting_for_count_fills_pending_entry(count_input):
+    asked = turn(SessionState(), "aaj Rina ANC visit korlam")
+    assert asked.ui_hint == "ask_field"
+    assert asked.new_state.phase == "AWAITING_FIELD"
+    assert asked.new_state.field == "count"
+
+    result = turn(asked.new_state, count_input)
+    assert result.ui_hint == "confirm"
+    assert result.new_state.phase == "AWAITING_CONFIRMATION"
+    assert result.entries[0].count == 2
+    assert result.entries[0].task_type == "antenatal_visit"
+    assert result.entries[0].beneficiary_ref == "R"

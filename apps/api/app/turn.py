@@ -76,7 +76,7 @@ async def turn(request: Request) -> dict[str, Any]:
         session_id, text, lang_hint = body.session_id, body.text, body.lang
     else:
         form = await request.form()
-        session_id = str(form.get("session_id", ""))
+        session_id = str(form.get("session_id", "")).strip()
         if not SESSION_ID_PATTERN.match(session_id):
             raise _error(422, "invalid_request")
         upload = form.get("audio")

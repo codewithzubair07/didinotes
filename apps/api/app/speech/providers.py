@@ -16,6 +16,7 @@ def get_stt(settings: Settings, mock_text: str = "") -> SpeechToText:
             keyterms=settings.gnani_stt_keyterms,
             timeout_s=settings.gnani_timeout_s,
             max_concurrency=settings.gnani_max_concurrency,
+            allow_live=True,
         )
     return MockSTT(text=mock_text)
 
@@ -35,5 +36,6 @@ def get_tts(settings: Settings) -> TextToSpeech:
             cache_dir=settings.tts_cache_dir,
             timeout_s=settings.gnani_timeout_s,
             max_concurrency=settings.gnani_max_concurrency,
+            allow_live=True,
         )
     return BrowserTTS()

@@ -7,6 +7,7 @@ TOKEN_RE = re.compile(r"[a-z]+|\d+|[\u0980-\u09ff\u200c\u200d]+")
 
 def normalise(text: str) -> str:
     text = unicodedata.normalize("NFC", text).translate(BENGALI_DIGITS)
+    text = re.sub(r"[।.,]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text.lower()
 
