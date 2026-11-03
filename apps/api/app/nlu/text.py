@@ -9,10 +9,14 @@ CASE_SUFFIXES = {
     "কে",
     "র",
     "ের",
+    "এর",
     "তে",
     "ে",
+    "এ",
     "য়",
     "য়ে",
+    "দের",
+    "দেরকে",
     "টা",
     "টি",
     "টো",
@@ -49,12 +53,13 @@ def _token_matches(text_token: str, phrase_token: str) -> bool:
         remainder = text_token[len(phrase_token) :]
         if remainder in CASE_SUFFIXES:
             return True
-        if remainder.startswith("-") and remainder[1:] in CASE_SUFFIXES:
+        stripped = remainder.lstrip("-–—")
+        if stripped in CASE_SUFFIXES:
             return True
     return False
 
 
-def contains_phrase(normalised: str, phrase: str) -> bool:
+def contains_phrase(normalised: str, phrase: str, max_gap: int = 3) -> bool:
     phrase_tokens = tokenize(normalise(phrase))
     if not phrase_tokens:
         return False
@@ -63,8 +68,25 @@ def contains_phrase(normalised: str, phrase: str) -> bool:
     if len(text_tokens) < p_len:
         return False
 
-    for i in range(len(text_tokens) - p_len + 1):
-        if all(text_tokens[i + j] == phrase_tokens[j] for j in range(p_len - 1)):
-            if _token_matches(text_tokens[i + p_len - 1], phrase_tokens[-1]):
+    if p_len == 1:
+        target = phrase_tokens[0]
+        return any(_token_matches(t, target) for t in text_tokens)
+
+    for i in range(len(text_tokens)):
+        if _token_matches(text_tokens[i], phrase_tokens[0]):
+            curr_pos = i
+            matched = True
+            for p_idx in range(1, p_len):
+                target = phrase_tokens[p_idx]
+                found = False
+                for next_pos in range(curr_pos + 1, min(curr_pos + max_gap + 2, len(text_tokens))):
+                    if _token_matches(text_tokens[next_pos], target):
+                        curr_pos = next_pos
+                        found = True
+                        break
+                if not found:
+                    matched = False
+                    break
+            if matched:
                 return True
     return False

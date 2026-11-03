@@ -36,11 +36,14 @@ task_keywords:
     - "nobojat"
     - "newborn"
     - "home visit"
+    - "newborn home visit"
     - "pnc"
     - "postnatal"
     - "নবজাতক"
     - "নবজাতকের"
     - "হোম ভিজিট"
+    - "নবজাতক হোম ভিজিট"
+    - "নবজাতকের হোম ভিজিট"
     - "পিএনসি"
     - "পোস্টন্যাটাল"
     - "নবজাতকের বাড়ি ভিজিট"
@@ -61,6 +64,10 @@ task_keywords:
     - "কাউন্সেলিং"
     - "কাউন্সিলিং"
     - "পরিবার পরিকল্পনা পরামর্শ"
+    - "family planning and counselling"
+    - "family planning and counseling"
+    - "পরিবার পরিকল্পনা এবং পরামর্শ"
+    - "পরিবার পরিকল্পনা ও পরামর্শ"
   other: []
 
 number_words:

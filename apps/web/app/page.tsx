@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { api, errorText, type Entry, type TurnResponse } from "@/lib/api";
+import { api, errorText, getBilingualTaskLabel, type Entry, type TurnResponse } from "@/lib/api";
 import { useLang } from "@/lib/lang";
 import { todayIso } from "@/lib/date";
 import { speakBrowser, playBase64Audio } from "@/lib/speech";
@@ -480,10 +480,33 @@ export default function TalkPage() {
           </div>
         )}
         {!loadingToday && !todayError && today.length === 0 && <p>{t("none_today")}</p>}
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {today.map((entry) => (
-            <li key={entry.id} className="border-2 border-black p-2">
-              {entry.task_type} · {entry.count} · {entry.beneficiary_ref ?? "-"} · {entry.status}
+            <li key={entry.id} className="border-2 border-black p-3 space-y-1">
+              <div>
+                <span className="text-xs font-semibold uppercase text-gray-600 block">
+                  {lang === "bn" ? "কাজের বিবরণ / Task" : "Task / কাজের বিবরণ"}:
+                </span>
+                <span className="text-base font-bold">
+                  {getBilingualTaskLabel(entry.task_type, entry.task_label_bn, entry.task_label_en)}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm pt-1 border-t border-gray-200">
+                <div>
+                  <span className="font-semibold text-gray-600 block">{t("count")}:</span>
+                  <span>{entry.count ?? "-"}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-600 block">{t("beneficiary")}:</span>
+                  <span>{entry.beneficiary_ref || "-"}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-600 block">
+                    {lang === "bn" ? "অবস্থা" : "Status"}:
+                  </span>
+                  <span className="capitalize">{entry.status || "-"}</span>
+                </div>
+              </div>
             </li>
           ))}
         </ul>

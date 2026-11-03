@@ -67,10 +67,24 @@ def _checklist_view(record: ChecklistRecord | None) -> dict[str, Any] | None:
     }
 
 
-def _entry_view(entry: Entry, checklist: ChecklistRecord | None = None) -> dict[str, Any]:
+def _entry_view(
+    entry: Entry,
+    checklist: ChecklistRecord | None = None,
+    task_types: list[TaskType] | None = None,
+) -> dict[str, Any]:
+    task_bn = entry.task_type
+    task_en = entry.task_type
+    if task_types:
+        for t_type in task_types:
+            if t_type.id == entry.task_type:
+                task_bn = t_type.bn_label
+                task_en = t_type.en_label
+                break
     return {
         "id": entry.id,
         "task_type": entry.task_type,
+        "task_label_bn": task_bn,
+        "task_label_en": task_en,
         "beneficiary_ref": entry.beneficiary_ref,
         "count": entry.count,
         "event_date": entry.event_date.isoformat(),
@@ -91,17 +105,19 @@ def _task_types(request: Request) -> list[TaskType]:
 def list_entries_by_date(
     request: Request, on_date: Annotated[date | None, Query(alias="date")] = None
 ) -> list[dict[str, Any]]:
+    tasks = _task_types(request)
     with request.app.state.session_factory() as db:
         entries = list_entries(db, on_date or today_local())
         checklists = get_checklists_for_entries(db, [e.id for e in entries])
-        return [_entry_view(entry, checklists.get(entry.id)) for entry in entries]
+        return [_entry_view(entry, checklists.get(entry.id), tasks) for entry in entries]
 
 
 @router.patch("/entries/{entry_id}")
 def patch_entry(request: Request, entry_id: int, body: EntryPatch) -> dict[str, Any]:
+    tasks = _task_types(request)
     changes = body.model_dump(exclude_unset=True)
     if "task_type" in changes and changes["task_type"] not in {
-        task.id for task in _task_types(request)
+        task.id for task in tasks
     }:
         raise _error(422, "unknown_task_type")
     if "event_date" in changes and changes["event_date"] > today_local():
@@ -115,17 +131,18 @@ def patch_entry(request: Request, entry_id: int, body: EntryPatch) -> dict[str, 
         if entry is None:
             raise _error(404, "entry_not_found")
         checklist = get_checklist_for_entry(db, entry_id)
-        return _entry_view(entry, checklist)
+        return _entry_view(entry, checklist, tasks)
 
 
 @router.post("/entries/{entry_id}/confirm")
 def confirm(request: Request, entry_id: int) -> dict[str, Any]:
+    tasks = _task_types(request)
     with request.app.state.session_factory() as db:
         entry = confirm_entry(db, entry_id)
         if entry is None:
             raise _error(404, "entry_not_found")
         checklist = get_checklist_for_entry(db, entry_id)
-        return _entry_view(entry, checklist)
+        return _entry_view(entry, checklist, tasks)
 
 
 @router.delete("/entries/{entry_id}", status_code=204)

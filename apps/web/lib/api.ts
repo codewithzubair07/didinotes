@@ -28,6 +28,8 @@ export type ChecklistView = {
 export type Entry = {
   id: number;
   task_type: string;
+  task_label_bn?: string;
+  task_label_en?: string;
   beneficiary_ref: string | null;
   count: number;
   event_date: string;
@@ -38,6 +40,44 @@ export type Entry = {
   created_at: string;
   checklist?: ChecklistView | null;
 };
+
+export const TASK_CONFIG: Record<string, { bn: string; en: string }> = {
+  antenatal_visit: {
+    bn: "গর্ভকালীন পরীক্ষা",
+    en: "Antenatal visit",
+  },
+  immunization_session: {
+    bn: "টিকাদান",
+    en: "Immunization session",
+  },
+  newborn_home_visit: {
+    bn: "নবজাতকের বাড়ি ভিজিট",
+    en: "Newborn home visit",
+  },
+  institutional_delivery_accompaniment: {
+    bn: "প্রাতিষ্ঠানিক প্রসবে সঙ্গ দেওয়া",
+    en: "Institutional delivery accompaniment",
+  },
+  family_planning_counselling: {
+    bn: "পরিবার পরিকল্পনা পরামর্শ",
+    en: "Family planning counselling",
+  },
+  other: {
+    bn: "অন্যান্য",
+    en: "Other",
+  },
+};
+
+export function getBilingualTaskLabel(taskType: string, bnLabel?: string, enLabel?: string): string {
+  if (bnLabel && enLabel && bnLabel !== taskType && enLabel !== taskType) {
+    return `${bnLabel} / ${enLabel}`;
+  }
+  const cfg = TASK_CONFIG[taskType];
+  if (cfg) {
+    return `${cfg.bn} / ${cfg.en}`;
+  }
+  return taskType || "-";
+}
 
 export type TurnResponse = {
   transcript: string;
