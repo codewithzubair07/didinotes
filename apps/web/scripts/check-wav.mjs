@@ -5,7 +5,7 @@
  */
 
 import assert from "node:assert";
-import { encodeWav, parseWavHeader, resampleLinear } from "../lib/wav.ts";
+import { checkAudioQuality, encodeWav, parseWavHeader, resampleLinear } from "../lib/wav.ts";
 
 console.log("=== Checking WAV Encoder & Resampler ===");
 
@@ -76,5 +76,53 @@ const thirtySecSizeMb = thirtySecBuffer.byteLength / (1024 * 1024);
 console.log(`   ✓ 30-second 16 kHz mono WAV size: ${thirtySecBuffer.byteLength} bytes (~${thirtySecSizeMb.toFixed(2)} MB)`);
 assert(thirtySecBuffer.byteLength < 1_000_000, "30-second audio must be under 1 MB limit (fits in 2 MB server limit)");
 
-console.log("\nALL WAV ENCODER TESTS PASSED SUCCESSFULLY.\n");
+// 5. Test Audio Quality Checks (Duration, Silence, Clipping)
+console.log("5. Verifying Audio Quality Checks (checkAudioQuality)...");
+
+// A. Silent: 1.0s of silence (all zeros)
+const silentSamples = new Float32Array(16000);
+const silentCheck = checkAudioQuality(silentSamples, 16000);
+assert.strictEqual(silentCheck.valid, false, "Silent audio must not be valid");
+assert.strictEqual(silentCheck.issue, "too_quiet_or_short", "Silent audio issue must be too_quiet_or_short");
+console.log("   ✓ Silent sample rejected (too_quiet_or_short)");
+
+// B. Too short: 0.2s of speech-level tone (< 0.5s)
+const shortSamples = new Float32Array(16000 * 0.2);
+for (let i = 0; i < shortSamples.length; i++) {
+  shortSamples[i] = 0.3 * Math.sin((2 * Math.PI * 440 * i) / 16000);
+}
+const shortCheck = checkAudioQuality(shortSamples, 16000);
+assert.strictEqual(shortCheck.valid, false, "Short audio (< 0.5s) must not be valid");
+assert.strictEqual(shortCheck.issue, "too_quiet_or_short", "Short audio issue must be too_quiet_or_short");
+console.log("   ✓ Too short sample rejected (too_quiet_or_short)");
+
+// C. Clipped: 1.0s audio with clipped peaks (amplitude >= 0.99)
+const clippedSamples = new Float32Array(16000);
+for (let i = 0; i < clippedSamples.length; i++) {
+  clippedSamples[i] = 0.3 * Math.sin((2 * Math.PI * 440 * i) / 16000);
+}
+clippedSamples[100] = 1.0;
+clippedSamples[101] = 1.0;
+clippedSamples[102] = 1.0;
+clippedSamples[103] = 1.0;
+clippedSamples[104] = 1.0;
+const clippedCheck = checkAudioQuality(clippedSamples, 16000);
+assert.strictEqual(clippedCheck.valid, false, "Clipped audio must not be valid");
+assert.strictEqual(clippedCheck.clipping, true, "clipping flag must be true");
+assert.strictEqual(clippedCheck.issue, "clipped", "Clipped audio issue must be clipped");
+console.log("   ✓ Clipped sample rejected (clipped)");
+
+// D. Normal: 1.0s audio with clean speech-level amplitude (0.3)
+const normalSamples = new Float32Array(16000);
+for (let i = 0; i < normalSamples.length; i++) {
+  normalSamples[i] = 0.3 * Math.sin((2 * Math.PI * 440 * i) / 16000);
+}
+const normalCheck = checkAudioQuality(normalSamples, 16000);
+assert.strictEqual(normalCheck.valid, true, "Normal audio must be valid");
+assert.strictEqual(normalCheck.clipping, false, "Normal audio must not have clipping");
+assert.strictEqual(normalCheck.issue, undefined, "Normal audio must have no issue");
+assert(normalCheck.rms > 0.1, "Normal audio RMS should be > 0.1");
+console.log("   ✓ Normal sample accepted (valid: true)");
+
+console.log("\nALL WAV ENCODER & AUDIO QUALITY TESTS PASSED SUCCESSFULLY.\n");
 

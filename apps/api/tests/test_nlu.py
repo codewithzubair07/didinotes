@@ -1,7 +1,8 @@
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
+from app.dialogue.manager import SessionState, handle
 from app.nlu.dates import parse_date
 from app.nlu.extract import CLINICAL_REFUSAL, extract
 from app.nlu.numbers import parse_number
@@ -222,3 +223,97 @@ def test_extract_unknown_task_falls_back_to_other_with_low_confidence():
 def test_extract_confidence_is_min_of_fields():
     entry = extract("aaj Rina-r ANC visit korlam", TODAY).entries[0]
     assert entry.confidence == min(entry.field_confidence.values())
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("দুজনকে", 2),
+        ("তিনজনকে", 3),
+        ("একজনকে", 1),
+        ("duijonke", 2),
+        ("dujonke", 2),
+        ("tinjonke", 3),
+        ("ekjonke", 1),
+        ("দুজনের", 2),
+        ("duijoner", 2),
+        ("তিনজনের", 3),
+        ("একজনের", 1),
+        ("duto", 2),
+        ("dutoke", 2),
+        ("ektake", 1),
+        ("2জনকে", 2),
+        ("2jonke", 2),
+        ("২জনকে", 2),
+    ],
+)
+def test_parse_number_compounds_with_suffixes(text, expected):
+    assert parse_number(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected_task, expected_count, expected_date",
+    [
+        # 1. Prompt example: Bengali + English loanword
+        ("আজ দুজনকে vaccination দিলাম।", "immunization_session", 2, TODAY),
+        # 2. Latin task word with Bengali case suffix (hyphenated)
+        ("আজকে ৩ জনকে vaccination-ke নিয়ে বললাম", "immunization_session", 3, TODAY),
+        # 3. Latin acronym with Bengali case suffix (ANC-এর) and checkup
+        ("আজকে ANC-এর ২ জনের চেকআপ করলাম", "antenatal_visit", 2, TODAY),
+        # 4. Bengali script with English keywords (antenatal checkup)
+        ("গতকাল একজনকে checkup করালাম", "antenatal_visit", 1, TODAY - timedelta(days=1)),
+        # 5. Bengali script spelling of English loanword (ভ্যাকসিনেশন)
+        ("আজ তিনজনকে ভ্যাকসিনেশন দিলাম", "immunization_session", 3, TODAY),
+        # 6. Latin task with Bengali case suffix (delivery-র)
+        (
+            "আজকে একজনকে delivery-র জন্য হাসপাতালে নিয়ে গেলাম",
+            "institutional_delivery_accompaniment",
+            1,
+            TODAY,
+        ),
+        # 7. Benglish with Romanised count suffix (duijonke) + home visit
+        ("aaj duijonke newborn home visit korlam", "newborn_home_visit", 2, TODAY),
+        # 8. Bengali script spelling of acronym (এএনসি)
+        ("আজ দুজনকে এএনসি করালাম", "antenatal_visit", 2, TODAY),
+        # 9. Bengali script spelling of acronym (পিএনসি) + Bengali script loanword (হোম ভিজিট)
+        ("আজ তিনজনকে পিএনসি হোম ভিজিট দিলাম", "newborn_home_visit", 3, TODAY),
+        # 10. Multi-word Latin task in Bengali sentence
+        (
+            "আজকে ৪ জনকে family planning counselling দিলাম",
+            "family_planning_counselling",
+            4,
+            TODAY,
+        ),
+        # 11. Romanised count suffix (tinjonke) + English loanword
+        ("aaj tinjonke vaccination dilam", "immunization_session", 3, TODAY),
+        # 12. Romanised count with classifier (dujonke) + immunization
+        (
+            "gotokal dujonke immunization korlam",
+            "immunization_session",
+            2,
+            TODAY - timedelta(days=1),
+        ),
+    ],
+)
+def test_extract_mixed_script_sentences(text, expected_task, expected_count, expected_date):
+    result = extract(text, TODAY)
+    assert len(result.entries) >= 1
+    entry = result.entries[0]
+    assert entry.task_type == expected_task
+    assert entry.count == expected_count
+    assert entry.event_date == expected_date
+    assert entry.confidence >= 0.9
+
+
+def test_dialogue_mixed_script_prompt_example():
+    result = handle(SessionState(), "আজ দুজনকে vaccination দিলাম।", TODAY)
+    assert result.ui_hint == "confirm"
+    assert result.new_state.phase == "AWAITING_CONFIRMATION"
+    assert len(result.entries) == 1
+    draft = result.entries[0]
+    assert draft.task_type == "immunization_session"
+    assert draft.count == 2
+    assert draft.event_date == TODAY
+    assert "টিকাদান" in result.response_text
+    assert "২ জন" in result.response_text
+    assert "আমি শুনেছি" in result.response_text

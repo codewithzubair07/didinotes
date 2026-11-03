@@ -90,6 +90,42 @@ export default function DiaryPage() {
             <p>
               {entry.status} · {entry.event_date}
             </p>
+            {entry.checklist && (
+              <div className="rounded border border-gray-400 bg-gray-50 p-2 text-sm space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs uppercase tracking-wider text-gray-700">
+                    {lang === "bn" ? "ভিজিট চেকলিস্ট" : "Visit Checklist"} (
+                    {entry.checklist.checklist_id.toUpperCase()})
+                  </span>
+                  {entry.checklist.has_danger_sign && (
+                    <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                      ⚠️ {lang === "bn" ? "বিপদ লক্ষণ" : "Danger Sign"}
+                    </span>
+                  )}
+                </div>
+                <ul className="mt-1 divide-y divide-gray-200">
+                  {Object.entries(entry.checklist.answers).map(([key, val]) => (
+                    <li key={key} className="flex items-center justify-between py-1 text-xs">
+                      <span className="text-gray-800">{val.text || key}:</span>
+                      <span
+                        className={`font-semibold ${
+                          val.is_danger_sign && val.answer === "yes"
+                            ? "font-bold text-red-700"
+                            : ""
+                        }`}
+                      >
+                        {String(val.answer)} {val.unit ?? ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {entry.checklist.has_danger_sign && (
+                  <div className="mt-2 rounded border border-red-500 bg-red-100 p-2 text-xs font-bold text-red-900">
+                    ⚠️ {lang === "bn" ? "ANM বা ডাক্তারকে জানান" : "Please inform your ANM or doctor"}
+                  </div>
+                )}
+              </div>
+            )}
             {editingId === entry.id ? (
               <div className="space-y-2">
                 <label className="block space-y-1">

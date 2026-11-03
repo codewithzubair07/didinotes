@@ -78,9 +78,19 @@ export default function ClaimPage() {
               ))}
             </tbody>
           </table>
-          <p className="font-bold">
-            {t("total")}: {claim.total_inr ?? t("not_configured")}
-          </p>
+          <div className="flex flex-col gap-2">
+            <p className="font-bold">
+              {t("total")}: {claim.total_inr ?? t("not_configured")}
+            </p>
+            <div className="flex items-center justify-between rounded-lg border-2 border-black bg-gray-50 p-3">
+              <span className="font-bold">
+                {lang === "bn" ? "সম্পূর্ণ চেকলিস্ট সংখ্যা" : "Completed Checklists"}:
+              </span>
+              <span className="font-mono text-xl font-bold">
+                {claim.completed_checklists_count ?? 0}
+              </span>
+            </div>
+          </div>
 
           <h2 className="text-xl font-bold">{t("attention")}</h2>
           {claim.attention.length === 0 && <p>-</p>}

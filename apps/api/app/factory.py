@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from sqlalchemy import Engine, inspect, text
 
-from app.config_loader import load_incentives
+from app.config_loader import load_checklists, load_incentives
 from app.db import Base, make_engine, make_session_factory
 from app.entry_routes import router as entry_router
 from app.nlu.llm import TimedExtractor, get_extractor
@@ -30,6 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.session_factory = make_session_factory(engine)
     app.state.task_types = load_incentives(settings.config_dir / "incentives.yaml")
+    app.state.checklists = load_checklists(settings.config_dir / "checklists.yaml")
     app.state.sessions = SessionStore(settings.session_ttl_seconds)
     app.state.rate_limiter = RateLimiter(settings.rate_limit_per_minute)
     app.state.extractor = TimedExtractor(get_extractor(settings))

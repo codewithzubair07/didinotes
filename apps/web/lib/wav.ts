@@ -13,6 +13,77 @@ export interface WavHeaderInfo {
   dataSize: number;
 }
 
+export interface AudioQualityCheck {
+  valid: boolean;
+  duration: number;
+  rms: number;
+  clipping: boolean;
+  issue?: "too_quiet_or_short" | "clipped";
+}
+
+/**
+ * Pure function to check audio recording quality from Float32Array samples.
+ * - duration < 0.5s or near-silent RMS (< 0.01): flags issue as "too_quiet_or_short".
+ * - clipping detected (samples hitting amplitude >= 0.99): flags issue as "clipped".
+ */
+export function checkAudioQuality(
+  samples: Float32Array,
+  sampleRate: number,
+  options?: {
+    minDurationSec?: number;
+    silentRmsThreshold?: number;
+    clipThreshold?: number;
+    clipSampleCountThreshold?: number;
+  },
+): AudioQualityCheck {
+  const minDuration = options?.minDurationSec ?? 0.5;
+  const silentRms = options?.silentRmsThreshold ?? 0.01;
+  const clipThreshold = options?.clipThreshold ?? 0.99;
+  const clipCountThreshold = options?.clipSampleCountThreshold ?? 4;
+
+  const duration = samples.length / sampleRate;
+  let sumSquares = 0;
+  let clippedCount = 0;
+
+  for (let i = 0; i < samples.length; i++) {
+    const val = samples[i];
+    sumSquares += val * val;
+    if (Math.abs(val) >= clipThreshold) {
+      clippedCount++;
+    }
+  }
+
+  const rms = samples.length > 0 ? Math.sqrt(sumSquares / samples.length) : 0;
+  const clipping = clippedCount >= clipCountThreshold;
+
+  if (duration < minDuration || rms < silentRms) {
+    return {
+      valid: false,
+      duration,
+      rms,
+      clipping,
+      issue: "too_quiet_or_short",
+    };
+  }
+
+  if (clipping) {
+    return {
+      valid: false,
+      duration,
+      rms,
+      clipping,
+      issue: "clipped",
+    };
+  }
+
+  return {
+    valid: true,
+    duration,
+    rms,
+    clipping: false,
+  };
+}
+
 /**
  * Pure linear interpolation resampler for Float32Array samples.
  * Can execute in both Node.js test environments and browser environments.
@@ -176,12 +247,18 @@ export async function resampleAndEncodeToWav(audioBuffer: AudioBuffer): Promise<
   return new Blob([wavArrayBuffer], { type: "audio/wav" });
 }
 
+export interface ProcessedAudioResult {
+  wavBlob: Blob;
+  quality: AudioQualityCheck;
+}
+
 /**
- * Converts a recorded audio Blob (e.g. from MediaRecorder) to a 16 kHz mono 16-bit PCM WAV Blob.
+ * Decodes audio Blob, verifies recording quality (duration, silence, clipping),
+ * and if valid, converts to a 16 kHz mono 16-bit PCM WAV Blob.
  */
-export async function convertBlobTo16kMonoWav(blob: Blob): Promise<Blob> {
+export async function convertAndCheckAudio(blob: Blob): Promise<ProcessedAudioResult> {
   if (typeof window === "undefined") {
-    throw new Error("convertBlobTo16kMonoWav is only supported in browser environments.");
+    throw new Error("convertAndCheckAudio is only supported in browser environments.");
   }
 
   const arrayBuffer = await blob.arrayBuffer();
@@ -196,7 +273,15 @@ export async function convertBlobTo16kMonoWav(blob: Blob): Promise<Blob> {
   const audioCtx = new AudioCtxClass();
   try {
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
-    return await resampleAndEncodeToWav(audioBuffer);
+    const monoSamples = audioBuffer.getChannelData(0);
+    const quality = checkAudioQuality(monoSamples, audioBuffer.sampleRate);
+
+    if (!quality.valid) {
+      return { wavBlob: new Blob([], { type: "audio/wav" }), quality };
+    }
+
+    const wavBlob = await resampleAndEncodeToWav(audioBuffer);
+    return { wavBlob, quality };
   } finally {
     try {
       await audioCtx.close();
@@ -204,5 +289,13 @@ export async function convertBlobTo16kMonoWav(blob: Blob): Promise<Blob> {
       // Ignore close errors
     }
   }
+}
+
+/**
+ * Converts a recorded audio Blob (e.g. from MediaRecorder) to a 16 kHz mono 16-bit PCM WAV Blob.
+ */
+export async function convertBlobTo16kMonoWav(blob: Blob): Promise<Blob> {
+  const { wavBlob } = await convertAndCheckAudio(blob);
+  return wavBlob;
 }
 

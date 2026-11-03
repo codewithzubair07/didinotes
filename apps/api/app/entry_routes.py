@@ -10,8 +10,15 @@ from app.claims import MONTH_PATTERN, build_claim, claim_csv, claim_html, entry_
 from app.clock import today_local
 from app.config_loader import TaskType
 from app.i18n import t
-from app.models import Entry
-from app.repository import confirm_entry, delete_entry, list_entries, update_entry
+from app.models import ChecklistRecord, Entry
+from app.repository import (
+    confirm_entry,
+    delete_entry,
+    get_checklist_for_entry,
+    get_checklists_for_entries,
+    list_entries,
+    update_entry,
+)
 from app.routes import DEMO_BANNER
 
 REQUIRED_FIELDS = ("task_type", "count", "event_date")
@@ -43,7 +50,24 @@ def _error(status: int, key: str) -> HTTPException:
     )
 
 
-def _entry_view(entry: Entry) -> dict[str, Any]:
+def _checklist_view(record: ChecklistRecord | None) -> dict[str, Any] | None:
+    if record is None:
+        return None
+    try:
+        answers = json.loads(record.answers)
+    except (ValueError, TypeError):
+        answers = {}
+    return {
+        "id": record.id,
+        "checklist_id": record.checklist_id,
+        "beneficiary_ref": record.beneficiary_ref,
+        "answers": answers,
+        "has_danger_sign": record.has_danger_sign,
+        "created_at": record.created_at.isoformat(),
+    }
+
+
+def _entry_view(entry: Entry, checklist: ChecklistRecord | None = None) -> dict[str, Any]:
     return {
         "id": entry.id,
         "task_type": entry.task_type,
@@ -52,6 +76,7 @@ def _entry_view(entry: Entry) -> dict[str, Any]:
         "event_date": entry.event_date.isoformat(),
         "notes": entry.notes,
         "documents": entry_documents(entry),
+        "checklist": _checklist_view(checklist),
         "status": entry.status,
         "confidence": entry.confidence,
         "created_at": entry.created_at.isoformat(),
@@ -68,7 +93,8 @@ def list_entries_by_date(
 ) -> list[dict[str, Any]]:
     with request.app.state.session_factory() as db:
         entries = list_entries(db, on_date or today_local())
-        return [_entry_view(entry) for entry in entries]
+        checklists = get_checklists_for_entries(db, [e.id for e in entries])
+        return [_entry_view(entry, checklists.get(entry.id)) for entry in entries]
 
 
 @router.patch("/entries/{entry_id}")
@@ -88,7 +114,8 @@ def patch_entry(request: Request, entry_id: int, body: EntryPatch) -> dict[str, 
         entry = update_entry(db, entry_id, **changes)
         if entry is None:
             raise _error(404, "entry_not_found")
-        return _entry_view(entry)
+        checklist = get_checklist_for_entry(db, entry_id)
+        return _entry_view(entry, checklist)
 
 
 @router.post("/entries/{entry_id}/confirm")
@@ -97,7 +124,8 @@ def confirm(request: Request, entry_id: int) -> dict[str, Any]:
         entry = confirm_entry(db, entry_id)
         if entry is None:
             raise _error(404, "entry_not_found")
-        return _entry_view(entry)
+        checklist = get_checklist_for_entry(db, entry_id)
+        return _entry_view(entry, checklist)
 
 
 @router.delete("/entries/{entry_id}", status_code=204)

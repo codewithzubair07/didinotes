@@ -1,6 +1,16 @@
 from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.clock import now_local
@@ -25,6 +35,23 @@ class Entry(Base):
     source_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Stored as naive IST wall-clock time because SQLite has no timezone support.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: now_local().replace(tzinfo=None)
+    )
+
+
+class ChecklistRecord(Base):
+    __tablename__ = "checklist_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entry_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("entries.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    checklist_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    beneficiary_ref: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # JSON-encoded mapping of question_id -> answer details
+    answers: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    has_danger_sign: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: now_local().replace(tzinfo=None)
     )

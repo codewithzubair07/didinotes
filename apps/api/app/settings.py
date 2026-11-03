@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     max_text_chars: int = 500
     rate_limit_per_minute: int = 30
     session_ttl_seconds: int = 900
+    checklist_mode: bool = False
 
     # Gnani settings
     gnani_api_key: str = ""

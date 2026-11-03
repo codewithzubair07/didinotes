@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config_loader import TaskType
 from app.models import Entry
+from app.repository import count_completed_checklists_in_month
 
 MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
 NOT_CONFIGURED = "amount not configured"
@@ -125,6 +126,7 @@ def build_claim(session: Session, yyyy_mm: str, task_types: list[TaskType]) -> d
         "month": yyyy_mm,
         "rows": rows,
         "total_inr": total_inr,
+        "completed_checklists_count": count_completed_checklists_in_month(session, start, end),
         "entries": [_entry_view(entry, by_id) for entry in confirmed],
         "attention": [
             _entry_view(entry, by_id)

@@ -1,0 +1,120 @@
+# Visit Checklists for ASHA Diary
+# Bilingual Bengali and English.
+# Danger sign questions trigger a non-diagnostic referral prompt to consult ANM/doctor.
+# Never gives clinical advice or diagnoses.
+
+checklists:
+  anc:
+    id: "anc"
+    task_type: "antenatal_visit"
+    title:
+      bn: "ANC ভিজিট চেকলিস্ট"
+      en: "ANC Visit Checklist"
+    questions:
+      - id: "first_trimester_registration"
+        text:
+          bn: "প্রথম তিন মাসের মধ্যে গর্ভধারণ নথিভুক্ত হয়েছে কি?"
+          en: "Was pregnancy registered in the first trimester?"
+        answer_type: "yes_no"
+        is_danger_sign: false
+
+      - id: "anc_checkup_done"
+        text:
+          bn: "ANC চেক-আপ সম্পন্ন হয়েছে কি?"
+          en: "Was ANC check-up completed?"
+        answer_type: "yes_no"
+        is_danger_sign: false
+
+      - id: "ifa_tablets_taken"
+        text:
+          bn: "IFA (আয়রন ফলিক অ্যাসিড) ট্যাবলেট খাচ্ছেন কি?"
+          en: "Are IFA tablets being taken?"
+        answer_type: "yes_no"
+        is_danger_sign: false
+
+      - id: "swelling_vision_headache"
+        text:
+          bn: "পা বা মুখে ফোলা ভাব, ঝাপসা দৃষ্টি, বা তীব্র মাথাব্যথা আছে কি?"
+          en: "Is there swelling, blurred vision, or severe headache?"
+        answer_type: "yes_no"
+        is_danger_sign: true
+
+      - id: "fever_with_chills"
+        text:
+          bn: "কাঁপুনি দিয়ে জ্বর আছে কি?"
+          en: "Is there fever with chills?"
+        answer_type: "yes_no"
+        is_danger_sign: true
+
+      - id: "bleeding"
+        text:
+          bn: "রক্তপাত বা স্পটিং হচ্ছে কি?"
+          en: "Is there any bleeding?"
+        answer_type: "yes_no"
+        is_danger_sign: true
+
+      - id: "birth_plan_made"
+        text:
+          bn: "প্রসব ও যাতায়াতের পরিকল্পনা (Birth plan) তৈরি হয়েছে কি?"
+          en: "Has a birth plan been prepared?"
+        answer_type: "yes_no"
+        is_danger_sign: false
+
+  hbnc:
+    id: "hbnc"
+    task_type: "newborn_home_visit"
+    title:
+      bn: "HBNC নবজাতক যত্ন চেকলিস্ট"
+      en: "HBNC Newborn Care Checklist"
+    questions:
+      - id: "feeding_well"
+        text:
+          bn: "শিশু ঠিকমতো বুকের দুধ টানছে কি?"
+          en: "Is the baby feeding well or breastfeeding?"
+        answer_type: "yes_no"
+        is_danger_sign: false
+
+      - id: "baby_temperature"
+        text:
+          bn: "শিশুর তাপমাত্রা কত (°C)?"
+          en: "What is the baby's temperature (°C)?"
+        answer_type: "number"
+        unit: "°C"
+        is_danger_sign: false
+
+      - id: "baby_weight"
+        text:
+          bn: "শিশুর ওজন কত (kg)?"
+          en: "What is the baby's weight (kg)?"
+        answer_type: "number"
+        unit: "kg"
+        is_danger_sign: false
+
+      - id: "fever_fast_breathing_chest_indrawing"
+        text:
+          bn: "জ্বর, দ্রুত শ্বাসপ্রশ্বাস, বা বুক দেবে যাওয়ার লক্ষণ আছে কি?"
+          en: "Is there fever, fast breathing, or chest indrawing?"
+        answer_type: "yes_no"
+        is_danger_sign: true
+
+      - id: "cord_clean"
+        text:
+          bn: "নাভির গোড়া পরিষ্কার ও শুকনো আছে কি?"
+          en: "Is the umbilical cord clean?"
+        answer_type: "yes_no"
+        is_danger_sign: false
+
+      - id: "mother_bleeding_or_fever"
+        text:
+          bn: "মায়ের রক্তপাত বা জ্বর আছে কি?"
+          en: "Does the mother have bleeding or fever?"
+        answer_type: "yes_no"
+        is_danger_sign: true
+
+      - id: "immunization_due"
+        text:
+          bn: "কোনো টিকা দেওয়ার বাকি আছে কি?"
+          en: "Is immunization due?"
+        answer_type: "yes_no"
+        is_danger_sign: false
+

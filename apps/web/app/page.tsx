@@ -5,7 +5,7 @@ import { api, errorText, type Entry, type TurnResponse } from "@/lib/api";
 import { useLang } from "@/lib/lang";
 import { todayIso } from "@/lib/date";
 import { speakBrowser, playBase64Audio } from "@/lib/speech";
-import { convertBlobTo16kMonoWav } from "@/lib/wav";
+import { convertAndCheckAudio } from "@/lib/wav";
 
 const DEV_PANEL = process.env.NEXT_PUBLIC_DEV_PANEL === "true";
 
@@ -92,7 +92,13 @@ export default function TalkPage() {
     try {
       const result = await api.turnText(sessionId(), text.trim(), lang);
       setTurn(result);
-      if (result.ui_hint === "saved") loadToday();
+      if (
+        result.ui_hint === "saved" ||
+        result.ui_hint === "offer_checklist" ||
+        result.ui_hint === "checklist_completed"
+      ) {
+        loadToday();
+      }
     } catch (err) {
       setError(errorText(err, lang, t("offline"), t("error")));
     } finally {
@@ -117,7 +123,13 @@ export default function TalkPage() {
     setError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, sampleRate: 16000 },
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl: true,
+        },
       });
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
@@ -167,13 +179,23 @@ export default function TalkPage() {
     setBusy(true);
     setError(null);
     try {
-      // Convert raw browser audio (WebM/OGG) to 16 kHz Mono 16-bit PCM WAV
-      const wavBlob = await convertBlobTo16kMonoWav(rawBlob);
+      // Check recording quality (duration, silence, clipping) and convert to 16 kHz Mono WAV
+      const { wavBlob, quality } = await convertAndCheckAudio(rawBlob);
+
+      if (!quality.valid) {
+        if (quality.issue === "clipped") {
+          setError(t("audio_clipped"));
+        } else {
+          setError(t("audio_too_quiet_or_short"));
+        }
+        return;
+      }
 
       const form = new FormData();
       form.append("session_id", sessionId());
       form.append("audio", wavBlob, "recording.wav");
       form.append("lang", lang);
+      form.append("checklist_mode", "true");
 
       const response = await fetch("/api/turn", { method: "POST", body: form });
       if (!response.ok) {
@@ -197,7 +219,16 @@ export default function TalkPage() {
 
       const result = (await response.json()) as TurnResponse;
       setTurn(result);
-      if (result.ui_hint === "saved") loadToday();
+      if (!result.transcript || !result.transcript.trim()) {
+        setError(t("empty_transcript_noisy"));
+      }
+      if (
+        result.ui_hint === "saved" ||
+        result.ui_hint === "offer_checklist" ||
+        result.ui_hint === "checklist_completed"
+      ) {
+        loadToday();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("error"));
     } finally {
@@ -274,6 +305,15 @@ export default function TalkPage() {
 
       {turn && (
         <section className="space-y-3 border-4 border-black p-3">
+          {turn.danger_banner && (
+            <div
+              role="alert"
+              className="border-4 border-black bg-red-600 p-4 font-bold text-white text-center text-lg"
+            >
+              ⚠️ {turn.danger_banner}
+            </div>
+          )}
+
           <div className="flex items-start justify-between gap-2">
             <p className="text-lg">{turn.response_text}</p>
             {needsManualPlay && turn.response_audio && (
@@ -290,6 +330,12 @@ export default function TalkPage() {
               </button>
             )}
           </div>
+
+          {turn.transcript && turn.transcript.trim() && (
+            <p className="text-sm font-medium text-gray-700 bg-gray-50 border border-gray-300 rounded p-2">
+              <span className="font-bold">{t("heard")}:</span> {turn.transcript}
+            </p>
+          )}
 
           {showReadback && (
             <div className="grid grid-cols-3 gap-2">
@@ -317,10 +363,58 @@ export default function TalkPage() {
             </div>
           )}
 
+          {turn.ui_hint === "offer_checklist" && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="min-h-16 rounded-lg border-4 border-black text-xl font-bold hover:bg-gray-100"
+                onClick={() => answer(lang === "bn" ? "হ্যাঁ" : "yes")}
+              >
+                {t("yes")}
+              </button>
+              <button
+                type="button"
+                className="min-h-16 rounded-lg border-4 border-black text-xl font-bold hover:bg-gray-100"
+                onClick={() => answer(lang === "bn" ? "না" : "no")}
+              >
+                {t("no")}
+              </button>
+            </div>
+          )}
+
+          {(turn.ui_hint === "checklist_question" || turn.ui_hint === "checklist_unclear") && (
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                className="min-h-16 rounded-lg border-4 border-black text-xl font-bold hover:bg-gray-100"
+                onClick={() => answer(lang === "bn" ? "হ্যাঁ" : "yes")}
+              >
+                {t("yes")}
+              </button>
+              <button
+                type="button"
+                className="min-h-16 rounded-lg border-4 border-black text-xl font-bold hover:bg-gray-100"
+                onClick={() => answer(lang === "bn" ? "না" : "no")}
+              >
+                {t("no")}
+              </button>
+              <button
+                type="button"
+                className="min-h-16 rounded-lg border-4 border-black text-xl font-bold hover:bg-gray-100"
+                onClick={() => answer(lang === "bn" ? "বাদ দিন" : "skip")}
+              >
+                {lang === "bn" ? "বাদ দিন" : "Skip"}
+              </button>
+            </div>
+          )}
+
           {DEV_PANEL && (
             <div className="border-t-2 border-black pt-2 text-xs space-y-1">
               <p className="font-bold text-sm uppercase tracking-wide">Developer Panel</p>
               <dl className="grid grid-cols-2 gap-x-2 gap-y-1">
+                <dt className="font-semibold">Transcript:</dt>
+                <dd className="font-mono">{turn.transcript || "(empty)"}</dd>
+
                 <dt className="font-semibold">STT Provider / Model:</dt>
                 <dd className="font-mono">{turn.dev?.stt_model ?? turn.providers.stt}</dd>
 

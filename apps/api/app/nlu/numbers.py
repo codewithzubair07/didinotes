@@ -3,12 +3,23 @@ import re
 from app.config_loader import Lexicon, default_lexicon
 from app.nlu.text import normalise, tokenize
 
-CLASSIFIER_SUFFIXES = r"(?:jon|জন|ta|টা|to|টো|te|টে|ti|টি)?"
+CLASSIFIER_SUFFIXES = (
+    r"(?:'|-|\s)?"
+    r"(?:"
+    r"(?:jon|জন)(?:'|-|\s)?(?:ke|কে|er|ের|র)?|"
+    r"(?:ta|টা)(?:'|-|\s)?(?:ke|কে|r|র|te|তে)?|"
+    r"(?:to|টো)(?:'|-|\s)?(?:ke|কে|r|র|te|তে)?|"
+    r"(?:ti|টি)(?:'|-|\s)?(?:ke|কে|r|র|te|তে)?|"
+    r"(?:te|টে)(?:'|-|\s)?(?:ke|কে|r|র)?|"
+    r"ke|কে|er|ের|র|te|তে"
+    r")?"
+)
 
 EXTRA_NUMBER_WORDS: list[tuple[str, int]] = [
     ("দুটো", 2),
     ("duto", 2),
     ("দু", 2),
+    ("du", 2),
 ]
 
 

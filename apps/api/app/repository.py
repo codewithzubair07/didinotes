@@ -1,9 +1,11 @@
+import json
 from datetime import date
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Entry
+from app.models import ChecklistRecord, Entry
 
 EDITABLE_FIELDS = ("task_type", "beneficiary_ref", "count", "event_date", "notes", "documents")
 
@@ -77,3 +79,66 @@ def delete_entry(session: Session, entry_id: int) -> bool:
     session.delete(entry)
     session.commit()
     return True
+
+
+def save_checklist_record(
+    session: Session,
+    *,
+    entry_id: int,
+    checklist_id: str,
+    beneficiary_ref: str | None,
+    answers: dict[str, Any],
+    has_danger_sign: bool,
+) -> ChecklistRecord:
+    record = session.scalar(
+        select(ChecklistRecord).where(ChecklistRecord.entry_id == entry_id)
+    )
+    answers_json = json.dumps(answers, ensure_ascii=False)
+    if record is None:
+        record = ChecklistRecord(
+            entry_id=entry_id,
+            checklist_id=checklist_id,
+            beneficiary_ref=beneficiary_ref,
+            answers=answers_json,
+            has_danger_sign=has_danger_sign,
+        )
+        session.add(record)
+    else:
+        record.checklist_id = checklist_id
+        record.beneficiary_ref = beneficiary_ref
+        record.answers = answers_json
+        record.has_danger_sign = has_danger_sign
+    session.commit()
+    return record
+
+
+def get_checklist_for_entry(session: Session, entry_id: int) -> ChecklistRecord | None:
+    return session.scalar(
+        select(ChecklistRecord).where(ChecklistRecord.entry_id == entry_id)
+    )
+
+
+def get_checklists_for_entries(
+    session: Session, entry_ids: list[int]
+) -> dict[int, ChecklistRecord]:
+    if not entry_ids:
+        return {}
+    records = session.scalars(
+        select(ChecklistRecord).where(ChecklistRecord.entry_id.in_(entry_ids))
+    ).all()
+    return {r.entry_id: r for r in records}
+
+
+def count_completed_checklists_in_month(
+    session: Session, start_date: date, end_date: date
+) -> int:
+    statement = (
+        select(ChecklistRecord)
+        .join(Entry, ChecklistRecord.entry_id == Entry.id)
+        .where(
+            Entry.event_date >= start_date,
+            Entry.event_date <= end_date,
+            Entry.status == "confirmed",
+        )
+    )
+    return len(list(session.scalars(statement)))

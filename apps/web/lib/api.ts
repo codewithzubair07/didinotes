@@ -9,6 +9,22 @@ export class ApiError extends Error {
   }
 }
 
+export type ChecklistAnswer = {
+  answer: string | number;
+  unit?: string;
+  text?: string;
+  is_danger_sign?: boolean;
+};
+
+export type ChecklistView = {
+  id: number;
+  checklist_id: string;
+  beneficiary_ref: string | null;
+  answers: Record<string, ChecklistAnswer>;
+  has_danger_sign: boolean;
+  created_at: string;
+};
+
 export type Entry = {
   id: number;
   task_type: string;
@@ -20,6 +36,7 @@ export type Entry = {
   status: "draft" | "confirmed" | "corrected";
   confidence: number | null;
   created_at: string;
+  checklist?: ChecklistView | null;
 };
 
 export type TurnResponse = {
@@ -28,6 +45,8 @@ export type TurnResponse = {
   response_text: string;
   response_audio: string | null;
   ui_hint: string;
+  danger_banner?: string | null;
+  has_danger_sign?: boolean;
   timings_ms: { stt: number; nlu: number; tts: number; llm?: number };
   providers: { stt: string; tts: string; nlu?: string };
   tts_fallback?: boolean | string;
@@ -69,6 +88,7 @@ export type Claim = {
   entries: ClaimEntry[];
   attention: ClaimEntry[];
   register_lines: string[];
+  completed_checklists_count?: number;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -93,10 +113,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  turnText: (sessionId: string, text: string, lang: string) =>
+  turnText: (sessionId: string, text: string, lang: string, checklistMode: boolean = true) =>
     request<TurnResponse>("/api/turn", {
       method: "POST",
-      body: JSON.stringify({ session_id: sessionId, text, lang }),
+      body: JSON.stringify({ session_id: sessionId, text, lang, checklist_mode: checklistMode }),
     }),
   entriesOn: (date: string) => request<Entry[]>(`/api/entries?date=${encodeURIComponent(date)}`),
   patchEntry: (id: number, changes: Partial<Pick<Entry, "count" | "event_date" | "beneficiary_ref">>) =>

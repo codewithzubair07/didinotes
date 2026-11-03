@@ -33,6 +33,19 @@ const STRINGS = {
     bn: "স্পিচ সার্ভারে সমস্যা হয়েছে। অনুগ্রহ করে নিচে লিখুন।",
     en: "Speech service error. Please type below.",
   },
+  audio_too_quiet_or_short: {
+    bn: "খুব আস্তে বা ছোট রেকর্ডিং, আবার বলুন",
+    en: "Too quiet or too short, please say it again",
+  },
+  audio_clipped: {
+    bn: "খুব জোরে, ফোন একটু দূরে রাখুন",
+    en: "Too loud, move the phone away",
+  },
+  heard: { bn: "আমি শুনেছি", en: "I heard" },
+  empty_transcript_noisy: {
+    bn: "আশেপাশে অনেক শব্দ হচ্ছে, দয়া করে আবার বলুন অথবা নিচে লিখুন / Too noisy, please try again or type below",
+    en: "Too noisy, please try again or type below / আশেপাশে অনেক শব্দ হচ্ছে, দয়া করে আবার বলুন অথবা নিচে লিখুন",
+  },
   tap_to_hear: { bn: "শুনতে চাপুন", en: "Tap to hear" },
   type_placeholder: { bn: "এখানে লিখুন", en: "Type here" },
   send: { bn: "পাঠান", en: "Send" },

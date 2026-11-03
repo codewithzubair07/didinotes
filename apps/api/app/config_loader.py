@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -103,3 +104,41 @@ def load_strings(path: Path) -> dict[str, object]:
 @lru_cache
 def default_strings() -> dict[str, object]:
     return load_strings(get_settings().config_dir / "i18n.yaml")
+
+
+class ChecklistQuestion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    text: dict[str, str] = Field(min_length=1)
+    answer_type: Literal["yes_no", "number"]
+    unit: str | None = None
+    is_danger_sign: bool = False
+
+
+class Checklist(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    task_type: str = Field(min_length=1)
+    title: dict[str, str]
+    questions: list[ChecklistQuestion] = Field(min_length=1)
+
+
+class ChecklistConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    checklists: dict[str, Checklist]
+
+
+def load_checklists(path: Path) -> dict[str, Checklist]:
+    try:
+        cfg = ChecklistConfig.model_validate(_read_yaml(path))
+        return cfg.checklists
+    except ValidationError as exc:
+        raise ConfigError(f"Invalid checklist config {path}: {exc}") from exc
+
+
+@lru_cache
+def default_checklists() -> dict[str, Checklist]:
+    return load_checklists(get_settings().config_dir / "checklists.yaml")

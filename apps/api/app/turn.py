@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.clock import today_local
 from app.dialogue.manager import SessionState, handle
 from app.i18n import t
-from app.repository import confirm_entry, create_entry
+from app.repository import confirm_entry, create_entry, save_checklist_record
 from app.speech.base import Speech
 from app.speech.gnani import (
     GnaniAudioError,
@@ -34,6 +34,7 @@ class TextTurn(BaseModel):
     session_id: str = Field(pattern=SESSION_ID_PATTERN.pattern)
     text: str = Field(min_length=1, max_length=500)
     lang: str = Field(default="bn", pattern="^(bn|en)$")
+    checklist_mode: bool | None = None
 
 
 def _error(status: int, key: str, **values: object) -> HTTPException:
@@ -68,12 +69,14 @@ async def turn(request: Request) -> dict[str, Any]:
     audio_bytes: bytes | None = None
     mime = ""
     lang_hint = "bn"
+    checklist_mode_arg: bool | None = None
     if content_type.startswith("application/json"):
         try:
             body = TextTurn.model_validate(await request.json())
         except (ValidationError, ValueError) as exc:
             raise _error(422, "invalid_request") from exc
         session_id, text, lang_hint = body.session_id, body.text, body.lang
+        checklist_mode_arg = body.checklist_mode
     else:
         form = await request.form()
         session_id = str(form.get("session_id", "")).strip()
@@ -82,6 +85,9 @@ async def turn(request: Request) -> dict[str, Any]:
         upload = form.get("audio")
         text = str(form.get("text", ""))
         lang_hint = str(form.get("lang", "bn"))
+        raw_cm = form.get("checklist_mode")
+        if raw_cm is not None:
+            checklist_mode_arg = str(raw_cm).lower() in ("true", "1", "yes")
         if lang_hint not in ("bn", "en"):
             raise _error(422, "invalid_request")
         if upload is not None and hasattr(upload, "read"):
@@ -169,13 +175,35 @@ async def turn(request: Request) -> dict[str, Any]:
     started = time.perf_counter()
     extractor = request.app.state.extractor
     extractor.last_ms = 0.0
-    result = handle(state, transcript_text, today_local(settings.tz), extractor=extractor)
+
+    if checklist_mode_arg is None:
+        header_val = request.headers.get("x-checklist-mode")
+        if header_val is not None:
+            checklist_mode_arg = header_val.lower() in ("true", "1", "yes")
+        elif "checklist_mode" in request.query_params:
+            param_val = request.query_params["checklist_mode"].lower()
+            checklist_mode_arg = param_val in ("true", "1", "yes")
+
+    is_checklist_active = (
+        state.phase in ("OFFERING_CHECKLIST", "IN_CHECKLIST")
+        or (checklist_mode_arg if checklist_mode_arg is not None else settings.checklist_mode)
+    )
+    checklists = getattr(request.app.state, "checklists", None) if is_checklist_active else None
+
+    result = handle(
+        state,
+        transcript_text,
+        today_local(settings.tz),
+        extractor=extractor,
+        checklists=checklists,
+    )
     timings["nlu"] = round((time.perf_counter() - started) * 1000, 1)
     timings["llm"] = extractor.last_ms
     nlu_name = extractor.last_source if extractor.last_ms > 0 else extractor.name
 
-    if result.ui_hint == "saved":
+    if result.ui_hint in ("saved", "offer_checklist") and not result.new_state.linked_entry_id:
         with request.app.state.session_factory() as db:
+            last_entry_id = None
             for draft in result.entries:
                 entry = create_entry(
                     db,
@@ -188,6 +216,23 @@ async def turn(request: Request) -> dict[str, Any]:
                     confidence=draft.confidence,
                 )
                 confirm_entry(db, entry.id)
+                last_entry_id = entry.id
+            if last_entry_id is not None:
+                result.new_state.linked_entry_id = last_entry_id
+
+    if result.checklist_complete and result.checklist_answers:
+        entry_id = result.linked_entry_id or result.new_state.linked_entry_id
+        if entry_id is not None:
+            with request.app.state.session_factory() as db:
+                ref = result.entries[0].beneficiary_ref if result.entries else None
+                save_checklist_record(
+                    db,
+                    entry_id=entry_id,
+                    checklist_id=result.checklist_id or "anc",
+                    beneficiary_ref=ref,
+                    answers=result.checklist_answers,
+                    has_danger_sign=result.has_danger_sign,
+                )
 
     request.app.state.sessions.put(session_id, result.new_state)
 
@@ -226,6 +271,8 @@ async def turn(request: Request) -> dict[str, Any]:
         "response_text": result.response_text,
         "response_audio": _speech_response(speech),
         "ui_hint": result.ui_hint,
+        "danger_banner": result.danger_banner,
+        "has_danger_sign": result.has_danger_sign,
         "timings_ms": timings,
         "providers": {"stt": stt_name, "tts": tts_name, "nlu": nlu_name},
         "tts_fallback": speech.tts_fallback,

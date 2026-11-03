@@ -39,6 +39,12 @@ dialogue:
   repeat: { bn: "দুঃখিত, বুঝতে পারিনি। অনুগ্রহ করে আবার বলুন।", en: "Sorry, I did not understand. Please say it again." }
   type_input: { bn: "এখনও বুঝতে পারছি না। অনুগ্রহ করে টাইপ করে লিখুন।", en: "I still cannot understand. Please type your answer." }
   clinical_refusal: { bn: "এই সরঞ্জাম শুধু কাজের রেকর্ড রাখে, চিকিৎসার পরামর্শ দেয় না। অনুগ্রহ করে আপনার ANM বা ডাক্তারের সাথে কথা বলুন।", en: "This tool only records your work and does not give medical advice. Please ask your ANM or doctor." }
+  offer_checklist: { bn: "সংরক্ষিত হয়েছে। চেকলিস্ট শুরু করবেন? হ্যাঁ / না", en: "Saved. Start checklist? haan/na" }
+  checklist_unclear: { bn: "বুঝতে পারিনি। আবার বলুন: {question}", en: "I didn't understand. Please say again: {question}" }
+  checklist_skip: { bn: "পরের প্রশ্ন: {question}", en: "Next question: {question}" }
+  checklist_completed: { bn: "চেকলিস্ট সম্পন্ন হয়েছে। ধন্যবাদ, কাজের বিবরণ সংরক্ষিত হয়েছে।", en: "Checklist completed. Thank you, work entry has been saved." }
+  checklist_completed_danger: { bn: "চেকলিস্ট সম্পন্ন হয়েছে। জরুরি সতর্কবার্তা: ANM বা ডাক্তারকে জানান।", en: "Checklist completed. Warning: Please inform your ANM or doctor." }
+  danger_sign_banner: { bn: "ANM বা ডাক্তারকে জানান / Please inform your ANM or doctor", en: "ANM বা ডাক্তারকে জানান / Please inform your ANM or doctor" }
 
 errors:
   audio_too_large: { bn: "অডিও ফাইল খুব বড়। সর্বোচ্চ সীমা {limit} বাইট।", en: "Audio file is too large. The limit is {limit} bytes." }
