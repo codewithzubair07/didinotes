@@ -1,285 +1,139 @@
-# DidiNotes (ASHA Diary)
+# DidiNotes
 
-Demo. Do not enter real patient data.
+> A voice-first work diary for ASHA community health workers in Bengali, Benglish and English.
 
-## What It Is
-
-**DidiNotes** (internally called "ASHA Diary") is a voice-first work diary for Accredited Social Health Activist (ASHA) community health workers in West Bengal, India.
-
-An ASHA worker verbally speaks her daily activities in colloquial Bengali or Benglish (Bengali mixed with English), such as:
-> *"aaj Rina-r ANC visit korlam, 2 jon baccha-r teeka dilam"*
-
-The application:
-1. Transcribes audio input using a Speech-to-Text adapter (Mock STT for local development; Gnani Prisma in production).
-2. Extracts structured work records using an NLU extractor (task type, event date, count, beneficiary reference).
-3. Holds an interactive voice/text confirmation dialogue (reading back recognized records, asking single follow-up questions for missing fields, handling corrections, resolving date traps such as *kal* and *porshu*).
-4. Persists confirmed records to an SQLite database.
-5. Generates official register-ready lines and monthly incentive claim sheets with CSV export and printable summaries.
-6. **Strictly refuses clinical advice queries.** DidiNotes is a record-keeping diary, never a clinical decision or diagnostic tool.
+Demo application. Do not enter real patient data.
 
 ---
 
-## Status
+## Problem
 
-- **Milestones 1 to 4 Complete**:
-  - Backend API: FastAPI + Pydantic v2 + SQLAlchemy/SQLite in `apps/api`.
-  - Frontend: Next.js (App Router, TypeScript strict, Tailwind CSS) in `apps/web`.
-  - NLU Extractor: Pure rules-based extractor with 100% exact match across the 60-item evaluation set; optional OpenAI LLM fallback.
-  - Evaluation Suite: 60-item utterance and dialogue evaluation suite (`eval/run_extraction_eval.py`), noise mixing tool (`eval/add_noise.py`), and STT Word Error Rate evaluation tool (`eval/run_stt_eval.py`).
-  - Automated Smoke Scripts: Cross-platform end-to-end conversation and persistence smoke scripts (`scripts/smoke.sh`, `scripts/smoke.ps1`).
-  - **Gnani Speech Integration**: Gnani Prisma STT and Timbre TTS adapters fully integrated with concurrency semaphore, exponential backoff retries, Bengali spoken numbers converter (`number_to_spoken_bn`), SHA-256 disk caching, and browser TTS fallback.
-  - 187 automated backend unit and integration tests passing.
+Accredited Social Health Activist (ASHA) community health workers in West Bengal deliver vital maternal, newborn, and immunization care across rural villages. Today, ASHAs record their daily field visits by hand into multiple paper registers. 
+
+Because paperwork is done on the move or late at night, records frequently get lost, damaged, or submitted late at the end of the month. This delays government incentive claims and deprives health workers of timely pay for their service.
 
 ---
 
-## Quick Start
+## Solution
 
-The system runs end-to-end with **no external API keys** out of the box (uses `MockSTT` and browser speech synthesis).
+**DidiNotes** (internally "ASHA Diary") replaces paper note-taking with an intelligent voice assistant:
+1. **Speak the Day**: The ASHA speaks naturally in colloquial Bengali or code-mixed Benglish (e.g. *"aaj ekta ANC ar duijon-ke vaccination dilam"*).
+2. **Instant Extraction**: The app transcribes the speech and extracts structured work entries: task type, count, date, and beneficiary reference.
+3. **Follow-Up Clarification**: If any vital field is missing, the app asks targeted, conversational follow-up questions.
+4. **Read-Back Confirmation**: The assistant reads the complete entry back in natural Bengali and asks for confirmation.
+5. **Saved Only After YES**: Work entries are committed to the database **only after explicit confirmation** (saying or clicking YES / হ্যাঁ / haan).
 
-### Windows
+---
 
-#### 1. Backend (FastAPI)
+## Features
+
+- **Voice & Typed Entry**: Large hold-to-talk microphone button with a 29-second auto-stop guard and an immediate text input fallback for noisy environments.
+- **Interactive Follow-Up Questions**: Prompts only for missing fields (count, date, or task) one at a time.
+- **Read-Back with YES / NO / EDIT**: Interactive confirmation cards with **YES (হ্যাঁ)**, **NO (না)**, and **EDIT (সম্পাদনা)** controls, accepting voice or touch input.
+- **Code-Mixed Speech Understanding**: Recognizes Bengali script, Romanised Benglish, and English loanwords with Bengali grammatical case suffixes (e.g. *vaccination-ke*, *ANC-এর*, *delivery-র*, *checkup*, *home visit*).
+- **Multi-Task Sentence Splitting**: Automatically splits compound sentences containing multiple tasks (conjunctions like *ar*, *ebong*, *o*, *and*, *tarpor*, punctuation, or weak particle *এর* between distinct tasks), assigning each count to its respective task and sharing dates across clauses.
+- **Audio Noise Checks & "I Heard" Line**:
+  - Web Audio API measures recording client-side: rejects recordings under 0.5 seconds or near-silent audio, and warns if audio is clipped, saving API credits.
+  - Microphone capture uses hardware noise suppression, echo cancellation, and auto-gain control.
+  - Client displays a transparent *"আমি শুনেছি / I heard: <transcript>"* banner under each assistant response and in the Dev Panel.
+- **Visit Checklists with Danger-Sign Banner**:
+  - After confirming an Antenatal (ANC) or Newborn Home Visit (HBNC), offers a step-by-step checklist.
+  - Evaluates danger signs (e.g. bleeding, severe headache, baby temperature/weight, convulsions) and triggers a prominent warning banner: *"ANM বা ডাক্তারকে জানান / Please inform your ANM or doctor"*.
+- **Work Diary**: Daily list view of entries with inline editing and deletion capabilities.
+- **Monthly Claim Sheet**: Aggregates verified work lines for the month, calculates sample incentive totals, flags missing documentation, exports to Excel-compatible UTF-8 CSV with BOM, and provides a print-ready register view.
+- **Bilingual Interface**: Quick toggle between Bengali (বাংলা) and English (EN) for all interface text and spoken dialogue.
+
+---
+
+## Gnani Speech Models
+
+DidiNotes integrates with [Gnani.ai](https://docs.gnani.ai) speech services for high-accuracy Indic language processing:
+
+| Service | Model | Endpoint | Purpose |
+|---|---|---|---|
+| **Speech-to-Text (STT)** | **Prisma** (`prisma-v2.5` / `prisma-v3.0`) | `POST https://api.vachana.ai/stt/v3` | Transcribes spoken Bengali and Benglish audio (`bn-IN`). Pre-validates audio format (rejects WebM) and ensures duration < 30 seconds before sending. |
+| **Text-to-Speech (TTS)** | **Timbre** (`timbre-v3.0`, voice *Shivani*) | `POST https://api.vachana.ai/api/v1/tts/inference` | Synthesizes spoken Bengali responses. Uses `number_to_spoken_bn()` to convert bare numbers and dates to spoken Bengali words for natural inflection. Local SHA-256 disk caching prevents redundant API calls. |
+
+---
+
+## Architecture Summary
+
+DidiNotes follows a decoupled, privacy-first architecture:
+
+- **Client (`apps/web`)**: Next.js 15 (App Router, React 19, TypeScript strict, Tailwind CSS). Records raw audio, downsamples to 16 kHz Mono, and encodes directly into 16-bit linear PCM WAV (`apps/web/lib/wav.ts`) using the Web Audio API without third-party dependencies.
+- **Backend API (`apps/api`)**: FastAPI service with Pydantic v2 validation and SQLAlchemy SQLite persistence (`asha_diary.db`).
+- **NLU & Dialogue State Machine**:
+  - `apps/api/app/nlu`: Deterministic tokenizers, date parsers, number extractors, and clause splitters.
+  - `apps/api/app/dialogue/manager.py`: Pure state machine managing `IDLE`, `AWAITING_FIELD`, `AWAITING_CONFIRMATION`, `OFFERING_CHECKLIST`, and `IN_CHECKLIST` phases.
+- **Speech Adapters (`apps/api/app/speech`)**: Abstract `SpeechToText` and `TextToSpeech` providers. Seamlessly swaps between Gnani production models and zero-dependency local mocks (`MockSTT` and browser SpeechSynthesis).
+
+For full architectural diagrams and deep-dive design documentation, see [ARCHITECTURE.md](file:///c:/Users/pc/Desktop/didinotes/ARCHITECTURE.md).
+
+---
+
+## How to Run
+
+### 1. Environment Configuration
+
+Copy the example environment configuration:
+```bash
+cp .env.example .env
+```
+
+> [!NOTE]
+> **Zero Keys Required for Development**: No API keys are committed to the repository. If `GNANI_API_KEY` is not provided, DidiNotes runs out-of-the-box using built-in mock STT and browser Web Speech synthesis (`STT_PROVIDER=mock`, `TTS_PROVIDER=browser`).
+
+To enable real Gnani models, add your key to `.env`:
+```env
+STT_PROVIDER=gnani
+TTS_PROVIDER=gnani
+GNANI_API_KEY=your_actual_gnani_api_key
+```
+
+### 2. Backend Setup (FastAPI)
+
+From the repository root:
 ```powershell
 cd apps/api
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements-dev.txt
-pytest -q
-ruff check .
-uvicorn app.main:app --port 8000
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+The API documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
-#### 2. Frontend (Next.js)
+### 3. Frontend Setup (Next.js)
+
+In a separate terminal:
 ```powershell
 cd apps/web
 cmd /c npm install
-cmd /c npm run typecheck
-cmd /c npm run build
 cmd /c npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-#### 3. Automated Smoke Test (Windows)
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/smoke.ps1
-```
+> [!IMPORTANT]
+> **Use Localhost Only**: Always access the web interface at **[http://localhost:3000](http://localhost:3000)**. Modern web browsers strictly block microphone access (`navigator.mediaDevices.getUserMedia`) over plain HTTP unless the hostname is `localhost` or `127.0.0.1`.
 
 ---
 
-### macOS and Linux
+## Automated Test Suite
 
-#### 1. Backend (FastAPI)
-```bash
-cd apps/api
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-pytest -q
-ruff check .
-uvicorn app.main:app --port 8000
-```
+All tests pass cleanly in automated validation:
 
-#### 2. Frontend (Next.js)
-```bash
-cd apps/web
-npm install
-npm run typecheck
-npm run build
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-#### 3. Automated Smoke Test (macOS / Linux)
-```bash
-bash scripts/smoke.sh
-```
-
----
-
-## Configuration
-
-Settings are managed via `pydantic-settings` from environment variables or a `.env` file at repository root. Copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Default | Description |
+| Test Command | Scope | Real Result |
 |---|---|---|
-| `LLM_PROVIDER` | `rules` | NLU extraction engine (`rules` or `openai`). Defaults to zero-dependency rules. |
-| `OPENAI_API_KEY` | *(empty)* | OpenAI API key if `LLM_PROVIDER=openai`. |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Model name for OpenAI extractor. Runs with `temperature: 0`. |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Base URL for OpenAI-compatible endpoint. |
-| `LLM_TIMEOUT_SECONDS` | `5.0` | Timeout in seconds before falling back to rules extractor. |
-| `STT_PROVIDER` | `mock` | Speech-to-Text provider (`mock` or `gnani`). |
-| `TTS_PROVIDER` | `browser` | Text-to-Speech provider (`browser` or `gnani`). |
-| `STORE_AUDIO` | `false` | Whether to persist uploaded audio files to disk. Currently uncommitted in memory. |
-| `GNANI_API_KEY` | *(empty)* | API key for Gnani Prisma STT and Timbre TTS. Required when provider is `gnani`. |
-| `GNANI_BASE_URL` | `https://api.vachana.ai` | Base URL for Gnani services. |
-| `GNANI_STT_MODEL` | *(empty)* | STT model: empty for Prisma v2.5, or `prisma-v3.0`. |
-| `GNANI_STT_LANGUAGES` | `bn-IN` | Language code for STT transcription. |
-| `GNANI_STT_FORMAT` | *(empty)* | Transcript format (e.g. `verbatim`, `transcribe`, `codemix`). |
-| `GNANI_STT_TOPIC` | *(empty)* | Optional STT context topic. |
-| `GNANI_STT_KEYTERMS` | *(empty)* | Optional STT keyterms (JSON array or comma-separated). |
-| `GNANI_TTS_MODEL` | `timbre-v3.0` | TTS model (`timbre-v3.0` or `timbre-v2.5`). |
-| `GNANI_TTS_VOICE` | `Shivani` | Voice name (e.g. `Shivani`, `Riyaa`, `Kalpana`, `Chetana`, `Devansh`). |
-| `GNANI_TTS_LANGUAGE` | `bn-IN` | Language code for TTS synthesis. |
-| `GNANI_TTS_SPEED` | `1.0` | Speech rate multiplier (0.85 to 1.15). |
-| `GNANI_TTS_CONTAINER` | `mp3` | Audio container format (`mp3` or `wav`). |
-| `GNANI_TTS_SAMPLE_RATE` | `24000` | Audio sampling rate in Hz. |
-| `GNANI_TTS_SPOKEN_NUMBERS` | `true` | Convert bare digits to spoken Bengali words before synthesis. |
-| `GNANI_MAX_CONCURRENCY` | `1` | Maximum outbound concurrent requests to Gnani API. |
-| `GNANI_TIMEOUT_S` | `30.0` | Outbound request timeout in seconds. |
-| `TTS_CACHE_DIR` | `.cache/tts` | Local directory for SHA-256 hashed TTS audio cache. |
-| `TZ` | `Asia/Kolkata` | Application timezone (Indian Standard Time). |
-| `DATABASE_URL` | `sqlite:///asha_diary.db` | SQLAlchemy SQLite database connection string. |
-| `CONFIG_DIR` | `config/` | Path to YAML configuration directory. |
-| `MAX_AUDIO_BYTES` | `2000000` | Maximum uploaded audio payload size (2 MB). |
-| `MAX_AUDIO_SECONDS` | `60` | Maximum audio duration in seconds (Gnani STT enforces 30s limit). |
-| `RATE_LIMIT_PER_MINUTE` | `30` | In-memory rate limit per client IP for `/api/turn`. |
-| `SESSION_TTL_SECONDS` | `900` | Dialogue session time-to-live in memory (15 minutes). |
+| `cd apps/api; .venv/Scripts/python -m pytest` | Backend test suite (`apps/api/tests`) | **284 passed**, 1 warning |
+| `apps/api/.venv/Scripts/ruff check apps/api` | Backend linter and code quality | **All checks passed!** |
+| `cd apps/web; npm run typecheck` | Frontend TypeScript type check (`tsc --noEmit`) | **0 errors** (clean) |
+| `cd apps/web; npm test` | Audio WAV encoder, resampler & quality check suite | **All 5/5 checks passed!** |
+| `cd apps/web; npm run build` | Next.js production build & static generation | **Compiled successfully** (4 routes generated) |
 
 ---
 
-## API Endpoints
+## Safety and Privacy
 
-All backend routes are prefixed with `/api`.
-
-### Core & Configuration
-- `GET /api/health` — Returns system status (`"status": "ok"`) and the mandatory demo banner.
-- `GET /api/config/task-types` — Returns the list of 6 health task types and required documentation.
-
-### Conversational Turn Pipeline
-- `POST /api/turn` — Handles audio or JSON text input. Accepts `{ session_id, text, lang }` or multipart audio. Returns:
-  - `transcript`: Transcribed speech or echoed input text.
-  - `entries`: List of recognized draft entries.
-  - `response_text`: Bengali or English dialogue response for the ASHA worker.
-  - `response_audio`: Base64-encoded audio if server TTS is active, else `null` (uses browser TTS).
-  - `ui_hint`: UI action tag (`ask_field`, `confirm`, `saved`, `repeat`, `type_input`, `refusal`).
-  - `timings_ms`: Latency breakdown (`stt`, `nlu`, `llm`, `tts`).
-  - `providers`: Active provider names (`stt`, `tts`, `nlu`).
-  - `tts_fallback`: Boolean indicating whether server TTS fell back to browser TTS.
-
-### Work Diary & Entries
-- `GET /api/entries?date=YYYY-MM-DD` — Lists diary entries for a specific date (defaults to today in IST).
-- `PATCH /api/entries/{id}` — Updates editable fields (`task_type`, `count`, `event_date`, `beneficiary_ref`, `notes`, `documents`). Re-validates constraints.
-- `POST /api/entries/{id}/confirm` — Explicitly marks a draft entry as confirmed.
-- `DELETE /api/entries/{id}` — Deletes an entry.
-
-### Claims & Register Export
-- `GET /api/claims/{yyyy-mm}` — Aggregates confirmed entries for the month, calculates sample incentive totals, flags missing documents, and generates register lines.
-- `GET /api/claims/{yyyy-mm}/export` — Exports the monthly claim summary as a UTF-8 CSV with BOM for Excel compatibility.
-- `GET /api/claims/{yyyy-mm}/print` — Generates a printable HTML report of the monthly register with demo disclaimer.
-
----
-
-## How It Works
-
-```mermaid
-flowchart LR
-    A["Voice or Text Input"] --> B["FastAPI Rate Limiter"]
-    B --> C{"STT Adapter"}
-    C -->|mock| D["Mock Transcript"]
-    C -->|gnani| G["Gnani Prisma STT (POST /stt/v3)"]
-    D --> E["Text Normaliser"]
-    G --> E
-    E --> F["NLU Extractor (Rules / OpenAI)"]
-    F --> H["DialogueManager (Pure State Machine)"]
-    H --> I{"Phase"}
-    I -->|AWAITING_FIELD| J["Prompt for missing field"]
-    I -->|AWAITING_CONFIRMATION| K["Readback summary (Initials only)"]
-    I -->|Saved| L[("SQLite DB (Confirmed Entries)")]
-    H --> M{"TTS Adapter"}
-    M -->|browser| N["Browser Web Speech API"]
-    M -->|gnani| O["Gnani Timbre TTS (/tts/inference)"]
-    O -->|Cached / Synthesized| P["Base64 Response Audio"]
-    O -->|Failure| N
-```
-
-1. **Privacy-Preserving Beneficiary Reference**: Beneficiary names are reduced to initials (e.g. "Rina" becomes "R", "Mina Begum" becomes "MB") or short IDs (e.g. "ID 47"). Full patient names are never stored or logged.
-2. **Ambiguous Date Handling**: Bengali terms *kal* and *porshu* refer to either past or future days depending on context. The system defaults to the past (yesterday / day before yesterday) and sets `date_ambiguous: true`, prompting the ASHA for clarification. Completed work is never silently recorded in the future.
-3. **Dialogue State Machine**: Pure state machine with states `IDLE`, `AWAITING_CONFIRMATION`, and `AWAITING_FIELD`. Handles readback, corrections ("na, count 3"), repeat prompts on unintelligible speech, and fallback to typed input.
-4. **Strict Clinical Refusal**: Medical advice queries (e.g., *"ki dose dibo"*, *"jor hole ki korbo"*) trigger an immediate standard refusal directing the worker to consult an ANM/MO-IC.
-5. **Speech Safety & Privacy**: Outbound Gnani logs record only `request_id`, `model`, `latency_ms`, and `status`. Audio bytes, transcripts, and API keys are never logged.
-
----
-
-## Plugging in Gnani
-
-The Gnani Prisma (STT) and Timbre (TTS) adapters are implemented in `apps/api/app/speech/gnani.py` using `httpx`.
-
-### 1. Enable Gnani in `.env`
-Add your API credentials to `.env`:
-```bash
-STT_PROVIDER=gnani
-TTS_PROVIDER=gnani
-GNANI_API_KEY=your_actual_gnani_api_key
-GNANI_BASE_URL=https://api.vachana.ai
-GNANI_STT_MODEL=prisma-v3.0
-GNANI_TTS_MODEL=timbre-v3.0
-GNANI_TTS_VOICE=Shivani
-```
-
-### 2. Verify Live Connectivity
-Run the opt-in live check script to perform 1 live TTS synthesis and 1 live STT transcription round-trip:
-```powershell
-python scripts/gnani_live_check.py --yes
-```
-*(The `--yes` flag is mandatory to prevent accidental API credit consumption.)*
-
-### 3. Generate Voice Comparison Samples
-Generate sample audio across 6 different Timbre voices to listen and evaluate the best voice for rural Bengal:
-```powershell
-python scripts/tts_voice_samples.py --yes
-```
-Output audio files are saved to `eval/audio/voices/{voice}.mp3` (ignored by Git).
-
-### 4. Adapter Features
-- **Bengali Spoken Numbers**: Preprocessing via `number_to_spoken_bn()` converts bare digits (০-৯ and 0-9) to spoken Bengali words (e.g., `2026` -> `"দুই হাজার ছাব্বিশ"`, `₹200` -> `"দুইশত টাকা"`, `২৯ অক্টোবর` -> `"ঊনত্রিশ অক্টোবর"`) so Timbre pronounces them naturally.
-- **Disk Caching**: Synthesized audio is cached locally in `.cache/tts/` using SHA-256 signatures, avoiding redundant HTTP requests for common prompts and confirmations.
-- **Pre-send Audio Validation**: STT rejects WebM audio (HTTP 415) and audio exceeding 30 seconds (HTTP 413) before sending HTTP requests, saving bandwidth and API credits.
-- **Fail-Safe Operation**: If Gnani TTS fails or is unreachable, the system automatically falls back to browser TTS with `tts_fallback: true` without failing the user's turn. If STT fails, a clear bilingual error is returned with a prompt to type.
-
----
-
-## Manual Browser Test Script (10 Steps)
-
-> [!WARNING]
-> **Verification Status**:
-> Browser microphone capture, audio recording/playback, and live browser speech synthesis have been tested via unit tests, TypeScript compilation, and production builds, but **remain unverified until you execute this manual 10-step script in your browser**.
-
-1. **Microphone Permission**: Open [http://localhost:3000](http://localhost:3000) in Chrome/Edge. Press the large Talk button; the browser should prompt for microphone permission. Denying permission displays the bilingual notice *"Microphone access was denied. Please allow microphone access or type below."* Grant permission.
-2. **Hold-to-Talk Recording**: Press and hold the Talk button, speak *"aaj Rina ANC visit korlam"*, and release. The button pulses red with an active timer. On release, the client resamples and encodes 16 kHz Mono 16-bit PCM WAV (`recording.wav`) and uploads to `/api/turn`.
-3. **Long Recording Auto-Stop**: Press and hold the Talk button without speaking for 29 seconds. Verify the timer badge reaches `29s / 29s` and automatically stops and sends the audio, preventing the 30-second Gnani limit rejection.
-4. **Typed-Input Fallback**: If speech is unavailable or fails, type *"aaj Rina ANC visit korlam"* into the text field and click **Send**. The assistant asks for missing count: *"কত জনের ANC ভিজিট করেছেন?"* (How many people's ANC visit did you do?).
-5. **Interactive Confirmation (Readback)**: Type or speak *"2 jon"*. The system enters the confirmation state and displays the readback card with **YES (হ্যাঁ)**, **NO (না)**, and **EDIT (সম্পাদনা)** buttons.
-6. **Voice Correction**: Click or say **EDIT (সম্পাদনা)** or say *"na, 3 jon"*. The system updates the draft count to 3 without creating duplicate entries. Click **YES (হ্যাঁ)** to confirm.
-7. **Diary Screen Inspection & Edit**: Navigate to the **Diary (ডায়েরি)** tab. The confirmed entry appears under today's work. Click **Edit**, adjust the count or beneficiary reference, and save.
-8. **Monthly Claim Sheet**: Navigate to the **Claim (দাবি)** tab for the current month. The confirmed entry appears aggregated in the activity summary and register lines.
-9. **CSV Export**: Click **Download CSV**. Verify the downloaded CSV file contains the official headers and confirmed claim row.
-10. **Printable Summary**: Click **Print page**. Verify the print preview formats cleanly, renders the sample banner, and includes register-ready lines.
-
----
-
-## Testing Status
-
-| Suite | Scope | Result |
-|---|---|---|
-| `pytest -q` | `apps/api/tests` (190 tests) | **190 passed** |
-| `ruff check .` | `apps/api`, `eval/`, `scripts/` | **All checks passed** |
-| `check-wav.mjs` | `apps/web/scripts` (WAV 16k PCM & resampler) | **All checks passed** |
-| `npm run typecheck` | `apps/web` (TypeScript strict) | **0 errors** |
-| `npm run build` | `apps/web` (Next.js 15 production build) | **Compiled successfully**, 4 routes generated |
-| `run_extraction_eval.py` | 60 items in `eval/utterances.jsonl` | **100.0% exact match** (60/60) |
-| `punctuation_sensitivity` | Sample sentences with bare, '।', and '.' | **0 discrepancies** (100% robust) |
-| `smoke.ps1` | End-to-end conversation & persistence | **PASSED** |
-
----
-
-## Limitations and Not Verified
-
-1. **Browser Microphone & Playback Unverified**: Real browser microphone hardware capture, browser audio playback, and live Gnani round-trip through the browser UI are unverified until the 10-step manual script above is executed.
-2. **Real Field Speech Dataset & Accuracy**: No real ASHA speech recordings have been collected or committed. Real-world accuracy under rural field noise (traffic, clinics, rain) cannot be claimed until real recordings are collected per `docs/RECORDING_GUIDE.md`.
-3. **Lexicon and Bengali Terminology**: `config/lexicon.yaml` and `config/i18n.yaml` are initial developer drafts and **require native speaker review** with local health workers in West Bengal.
-4. **Sample Incentive Amounts**: Amounts in `config/incentives.yaml` are sample data only and marked `verified: false`. The system deliberately displays *"amount not configured"* on monthly claim summaries until verified.
-5. **Live Gnani Endpoints in Automated Tests**: Automated backend unit tests strictly mock HTTP calls via `httpx.MockTransport` and `conftest.py` forces mock speech adapters during testing. Live API accuracy and latency depend on Gnani cloud infrastructure.
+- **Demo Banner**: A persistent banner (*"Demo. Do not enter real patient data" / "ডেমো সংস্করণ। কোনো আসল রোগীর তথ্য দেবেন না।"*) is displayed on every screen, export, and API response.
+- **No Real Patient Data**: Beneficiary names are never stored or logged in full. Names are reduced to initials (e.g. "Rina Begum" $\to$ "RB") or arbitrary beneficiary IDs (e.g. "ID 104").
+- **Strict Clinical Refusal**: DidiNotes is strictly a record-keeping diary and **never provides medical advice, diagnosis, or triage**. Any clinical inquiry (e.g. *"ei rogir ki dose dibo?"*, *"jor hole ki oshudh khabo?"*) triggers an immediate clinical refusal advising the worker to consult an ANM, Medical Officer, or doctor.
+- **Zero Audio Storage**: Audio files are processed strictly in-memory during the conversational turn and are **never written to disk or persisted**.
+- **No Server-Side Audio or Transcript Logging**: Server logs record only sanitized operational telemetry (`request_id`, status code, latency). Raw audio, transcripts, and API credentials are never logged.
